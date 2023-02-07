@@ -137,6 +137,28 @@ void drawBlock(int x)
 	refresh();
 }
 
+// draw board
+
+void drawBoard() 
+{	
+	unsigned int temp1, temp2;
+	
+	for ( int L = 0; L < 20; L++ )
+	{
+		temp1 = board[L];
+		move(L, 0);
+		
+		for ( int P = 10; P > 0; P-- )
+		{
+			temp2 = ( temp1 >> P ) & 0x1;
+			
+			if (temp2) 	printw("#");
+			else		printw(" ");
+		}
+	}
+	
+	refresh();
+}
 
 
 // Check collisions. Return 0 if no, 1 if yes
@@ -223,6 +245,7 @@ void rotateBlock( unsigned int *given )
 	if ( *given == 0x159D ) 	*given = block_I;
 	else if ( *given == block_I ) 	*given = 0x159D;
 	else if ( *given == block_O);
+	
 	else
 	{
 		unsigned int current = 0x0;
@@ -277,7 +300,7 @@ int checkLine(int L)
 }
 // Write block to game board
 
-void writeBlock() {
+/*void writeBlock() {
 	for (int i = 0; i < 4; i++) {
 		for (int j = 0; j < 4; j++) {
 			if (block[i][j]) {
@@ -286,7 +309,7 @@ void writeBlock() {
 			}
 		}
 	}
-}
+}*/
 
 // Signal handler (move down) /////////////////////////////////////////////////////////////
 
@@ -302,7 +325,7 @@ void sighandler(int signum)
 	
 	else 
 	{
-		writeBlock();
+		//writeBlock();
 		newBlock();
 		
 		ULPX = 4;
@@ -396,11 +419,8 @@ int main(){
 int main()
 {
 	initscr();			// Begin curses
-	while (1)
-	{
-		gameloop();
-	}
-	
+	gameloop();
+		
 	endwin();			// End curses mode
 
 	return 0;
