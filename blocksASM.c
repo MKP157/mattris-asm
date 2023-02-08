@@ -11,101 +11,91 @@
 #define GORIGHT 1
 #define GODOWN 2
 #define SPIN 3
+
+#define tetrInteger unsigned int
 // Global Variables /////////////////////////////////////////////////////////////////////
 
-unsigned int ULPY = 1, ULPX = 1, score = 0, blockState = 0;
+unsigned int ULPY, ULPX, score = 0, blockState = 0;
 unsigned int board[20] = {0};
 unsigned int block = 0;
 int level = 9;
 
 // Blocks
 /* 00 01 10 11
-00   
+00
 01  x  x  x
 10     x
 11
 
 */
 
-unsigned int block_T = 0x4569;	// 0100010101101001b
-unsigned int block_I = 0x4567;	// 0000000100100011b
-unsigned int block_O = 0x569A;	// 0000010000010101b
-unsigned int block_J = 0x0456;	// 0000010001010110b
-unsigned int block_L = 0x4562;	// 0000000100100100b
-unsigned int block_S = 0x4512; 	// 0001010101001000b
-unsigned int block_Z = 0x0156; 	// 0000010001011001b
+tetrInteger block_T = 0x4569;	// 0100010101101001b
+tetrInteger block_I = 0x4567;	// 0000000100100011b
+tetrInteger block_O = 0x569A;	// 0000010000010101b
+tetrInteger block_J = 0x0456;	// 0000010001010110b
+tetrInteger block_L = 0x4562;	// 0000000100100100b
+tetrInteger block_S = 0x4512; 	// 0001010101001000b
+tetrInteger block_Z = 0x0156; 	// 0000010001011001b
 
 // Methods //////////////////////////////////////////////////////////////////////////////
 
 void sighandler(int);
 
-/*
-void DEBUG() {
-	move(0, 15);
-	printw("x: %d", ULPX);
-	move(3, 15);
-	printw("y: %d ", ULPY);
-	
-	move(5, 15);
-	printw("Score:%08d", score);
-	
-	move(0,30);
-	printw("block state in memory:");
-	for (int i = 0; i < 4; i++) {
-		move(i,30);
-		for (int j = 0; j < 4; j++)
-			printw("%d", block[i][j]);
-	}
-	
-	
-	for (int i = 0; i < 20; i++) {
+
+void DEBUG()
+{
+	for (int i = 0; i < 20; i++)
+	{
 		move(i, 50);
-		for (int j = 0; j < 10; j++) {
-			printw("%d", board[i][j]);
+
+		for (int j = 32; j > 0; j--)
+		{
+			printw("%c", ((board[i] >> j) & 0x1) + '0');
+			refresh();
 		}
 	}
 }
-*/
+
 
 // Generate new tetromino
 
 
 // Set tetromino in play /////////////////////////////////////////////////////////////
 
-void newBlock() 
-{	
+void newBlock()
+{
 	int nextBlock = rand() % 7;
-	
-	switch(nextBlock) 
+
+	switch(nextBlock)
 	{
 			case 0:	// T
 			block = block_T;
 			break;
-			
+
 			case 1:	// I
 			block = block_I;
 			break;
-			
+
 			case 2: // O
 			block = block_O;
 			break;
-			
+
 			case 3:  // J
 			block = block_J;
 			break;
-			
+
 			case 4: // L
 			block = block_L;
 			break;
-			
+
 			case 5: // S
 			block = block_S;
 			break;
-			
+
 			case 6: // Z
 			block = block_Z;
 			break;
-			
+
 			default: break;
 	}
 }
@@ -113,18 +103,18 @@ void newBlock()
 
 // draw active block. parameter x: 0=erase, 1=draw
 
-void drawBlock(int x) 
+void drawBlock(int x)
 {
 	unsigned int temp = block;
 	unsigned int mask = 0x3;		// 0000000000000011b
 	unsigned int resultX, resultY;
 	char out;
-	
+
 	if (x)
 		out = '#';
 	else
 		out = ' ';
-	
+
 	for( int i = 0; i < 4; i++ )
 	{
 		resultX = temp & mask;
@@ -133,30 +123,37 @@ void drawBlock(int x)
 		temp = temp >> 2;
 		mvprintw(ULPY + resultY, ULPX + resultX, "%c", out);
 	}
-	
+
 	refresh();
 }
 
 // draw board
 
-void drawBoard() 
-{	
-	unsigned int temp1, temp2;
-	
-	for ( int L = 0; L < 20; L++ )
+void drawBoard()
+{
+	int temp1, temp2;
+
+	for (int i = 0; i < 20; i++)
 	{
-		temp1 = board[L];
-		move(L, 0);
-		
-		for ( int P = 10; P > 0; P-- )
+		move(i, 0);
+		temp1 = board[i];
+
+		for (int j = 10; j > 0; j--)
 		{
-			temp2 = ( temp1 >> P ) & 0x1;
-			
-			if (temp2) 	printw("#");
-			else		printw(" ");
+			temp2 = (board[i] >> j);
+
+			if (temp2 & 0x1)
+			{
+				printw("#");
+			}
+
+			else
+			{
+				printw(" ");
+			}
 		}
 	}
-	
+
 	refresh();
 }
 
@@ -164,40 +161,40 @@ void drawBoard()
 // Check collisions. Return 0 if no, 1 if yes
 
 
-int checkCollide(char dir, unsigned int *given) 
-{	
-	unsigned int temp = *given, bit = 0x0;
-	unsigned int curr_X, curr_Y;
-	unsigned int ofs_X = 0x0, ofs_Y = 0x0;
-	unsigned int row, col;
-	
+int checkCollide(char dir, unsigned int *given)
+{
+	tetrInteger temp = *given, bit = 0x0;
+	int curr_X, curr_Y;
+	int ofs_X = 0x0, ofs_Y = 0x0;
+	int row, col;
+
 	switch (dir)
 	{
 		// left
 		case GOLEFT:
 			ofs_X--;
 		break;
-		
+
 		// right
 		case GORIGHT:
 			ofs_X++;
 		break;
-		
+
 		// down
 		case GODOWN:
 			ofs_Y++;
 		break;
-		
+
 		default: break;
 	}
-	
+
 	for( int i = 0; i < 4; i++ )
 	{
 		curr_X = temp & 0x3;
 		temp = temp >> 2;
 		curr_Y = temp & 0x3;
 		temp = temp >> 2;
-		
+
 		// shift all values of board right until focus bit is LSD;
 		// ex: want bit #3
 		// board[n] =   001010110 >> 3-1
@@ -210,19 +207,19 @@ int checkCollide(char dir, unsigned int *given)
 		//		000000010
 		//	&mask	000000001
 		//	==	000000000 => false
-		
+
 		row = ULPY + curr_Y + ofs_Y;
 		col = ULPX + curr_X + ofs_X;
-		
+
 		if ( row < 0 || row > 19 || col < 0 || col > 9 )
 			return 1;
-		
-		bit = ( board[row] >> ( col - 1) ) & 0x1;
-		
+
+		bit = ( board[row] >> ( 10 - col ) ) & 0x1;
+
 		if (bit)
 			return 1;
 	}
-	
+
 	return 0;
 }
 
@@ -240,100 +237,109 @@ int checkCollide(char dir, unsigned int *given)
 //		0001 -> 0100 -> 1001 -> 0110
 //		0x1	0x4	0x9	0x6
 
-void rotateBlock( unsigned int *given ) 
+void rotateBlock( unsigned int *given )
 {
 	if ( *given == 0x159D ) 	*given = block_I;
 	else if ( *given == block_I ) 	*given = 0x159D;
 	else if ( *given == block_O);
-	
+
 	else
 	{
 		unsigned int current = 0x0;
 		unsigned int accumulate = 0x0;
-		
+
 		for( int i = 0; i < 16; i += 4 )
 		{
 			unsigned int temp = *given;
 			current = (temp & (0xF << i)) >> i;
-			
+
 			switch (current)
 			{
 				case 0x0:	current = 0x8;	break;
 				case 0x8:	current = 0xA;	break;
 				case 0xA:	current = 0x2;	break;
 				case 0x2:	current = 0x0;	break;
-				
+
 				case 0x1:	current = 0x4;	break;
 				case 0x4:	current = 0x9; 	break;
 				case 0x9:	current = 0x6; 	break;
 				case 0x6:	current = 0x1;	break;
-				
+
 				default: break;
 			}
-			
+
 			accumulate = (accumulate << 4) | current;
 		}
-		
+
 		if (!checkCollide(4, &accumulate))
 		{
 			*given = accumulate;
 		}
 	}
-	
+
 }
 
 // Check for full line /////////////////////////////////////////////////////////////
 
-int checkLine(int L) 
-{	
+void checkLine(int L)
+{
 	// 10x 1 digits, a full line
-	if ( ( board[L] & 0x3FF ) != 0x3FF )
-		return 0;
-		
-	for ( int i = L; i > 0; i--)
+	if ( ( board[L] & 0x3FF ) == 0x3FF )
 	{
-		board[L] = board[L-1];
+		for ( int i = L; i > 0; i--)
+		{
+			board[L] = board[L-1];
+		}
+
+		board[0] = 0x0;
 	}
-	
-	board[0] = 0x0;
-	return 1;
 }
 // Write block to game board
 
-/*void writeBlock() {
-	for (int i = 0; i < 4; i++) {
-		for (int j = 0; j < 4; j++) {
-			if (block[i][j]) {
-				board[ULPY+i][ULPX+j] = 1;
-				checkLine(ULPY+i);
-			}
-		}
+void writeBlock(tetrInteger *given)
+{
+	tetrInteger temp_block = *given;
+
+	unsigned int temp1, temp2;
+
+	for ( int i = 0; i < 4; i++ )
+	{
+		temp1 = ULPX + (temp_block & 0x3);
+		temp_block = temp_block >> 2;
+
+		temp2 = ULPY + (temp_block & 0x3);
+		temp_block = temp_block >> 2;
+
+		board[temp2] = board[temp2] + (0x1 << (10-temp1));
+		checkLine(temp2);
 	}
-}*/
+
+	DEBUG();
+}
 
 // Signal handler (move down) /////////////////////////////////////////////////////////////
 
-void sighandler(int signum) 
-{	
+void sighandler(int signum)
+{
 	drawBlock(0);
-	
-	if (!checkCollide(GODOWN, &block)) 
-	{		
+
+	if (!checkCollide(GODOWN, &block))
+	{
 		ULPY++;
 		ualarm((useconds_t)(level * 100000), 0);
 	}
-	
-	else 
+
+	else
 	{
-		//writeBlock();
+		writeBlock(&block);
 		newBlock();
-		
+
 		ULPX = 4;
 		ULPY = 0;
-		
+
 		sighandler(SIGALRM);
 	}
-	
+
 	drawBlock(1);
 	refresh();
 }
@@ -347,54 +353,55 @@ void gameloop() {
 		move(i,10);
 		printw("|");
 	}
-	
+
 	newBlock();
-	
+
 	ULPY = 0;
 	ULPX = 4;
-	
+
 	int ch = 'p';
-	
+
 	signal(SIGALRM,sighandler); // Register signal handler
 	ualarm((useconds_t)(level * 100000), 0);
-			
-	while (ch != 'e') 
+
+	while (ch != 'e')
 	{
+		drawBoard();
 		drawBlock(1);
 		refresh();
 		ch = getchar();
 		drawBlock(0);
-		
+
 		switch(ch) {
 			// rotate
-			case 'w':	
+			case 'w':
 				rotateBlock(&block);
 			break;
-			
+
 			// check left:
-			case 'a':	
+			case 'a':
 				if (!checkCollide(GOLEFT, &block))
 					ULPX--;
 			break;
-			
+
 			// check right:
-			case 'd':	
+			case 'd':
 				if (!checkCollide(GORIGHT, &block))
 					ULPX++;
 			break;
-			
+
 			//check down
 			case 's':
 				sighandler(SIGALRM);
 			break;
-			
+
 			// new block (debug!)
-			case 'b':	
+			case 'b':
 				ULPX = 4;
 				ULPY = 0;
 				newBlock();
 			break;
-			
+
 			default: break;
 		}
 	}
@@ -407,7 +414,7 @@ void gameloop() {
 int main(){
 	time_t t;
 	srand((unsigned) time(&t));	// Use current time to seed random number generation
-	
+
 	initscr();			// Begin curses
 	gameloop();			// active game code
 	endwin();			// End curses mode
@@ -420,7 +427,7 @@ int main()
 {
 	initscr();			// Begin curses
 	gameloop();
-		
+
 	endwin();			// End curses mode
 
 	return 0;
