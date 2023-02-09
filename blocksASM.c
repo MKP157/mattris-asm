@@ -13,6 +13,7 @@
 #define SPIN 3
 
 #define tetrInteger unsigned int
+#define tetrInt unsigned int
 // Global Variables /////////////////////////////////////////////////////////////////////
 
 unsigned int ULPY, ULPX, score = 0, blockState = 0;
