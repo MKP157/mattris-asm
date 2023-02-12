@@ -12,14 +12,16 @@
 #define GODOWN 2
 #define SPIN 3
 
-#define tetrInteger unsigned int
-#define tetrInt unsigned int
+#define TETRINTEGER unsigned short int
+#define BOARDTYPE unsigned short int
+
 // Global Variables /////////////////////////////////////////////////////////////////////
 
-unsigned int ULPY, ULPX, score = 0, blockState = 0;
-unsigned int board[20] = {0};
-unsigned int block = 0;
-int level = 9;
+char		ULPY, ULPX;
+BOARDTYPE 	board[20] = {0};
+TETRINTEGER	block = 0;
+int 		level = 9;
+int 		score = 0, blockState = 0;
 
 // Blocks
 /* 00 01 10 11
@@ -30,30 +32,29 @@ int level = 9;
 
 */
 
-tetrInteger block_T = 0x4569;	// 0100010101101001b
-tetrInteger block_I = 0x4567;	// 0000000100100011b
-tetrInteger block_O = 0x569A;	// 0000010000010101b
-tetrInteger block_J = 0x0456;	// 0000010001010110b
-tetrInteger block_L = 0x4562;	// 0000000100100100b
-tetrInteger block_S = 0x4512; 	// 0001010101001000b
-tetrInteger block_Z = 0x0156; 	// 0000010001011001b
+TETRINTEGER block_T = 0x4569;	// 0100010101101001b
+TETRINTEGER block_I = 0x4567;	// 0000000100100011b
+TETRINTEGER block_O = 0x569A;	// 0000010000010101b
+TETRINTEGER block_J = 0x0456;	// 0000010001010110b
+TETRINTEGER block_L = 0x4562;	// 0000000100100100b
+TETRINTEGER block_S = 0x4512; 	// 0001010101001000b
+TETRINTEGER block_Z = 0x0156; 	// 0000010001011001b
 
 // Methods //////////////////////////////////////////////////////////////////////////////
 
 void sighandler(int);
 
-
 void DEBUG()
 {
 	for (int i = 0; i < 20; i++)
 	{
-		move(i, 50);
-
-		for (int j = 32; j > 0; j--)
+		for (int j = 16; j > 0; j--)
 		{
-			printw("%c", ((board[i] >> j) & 0x1) + '0');
+			mvprintw(i, 30 - j, "%c", ((board[i] >> j) & 0x1) + '0');
 			refresh();
 		}
+		
+		mvprintw(i, 50, "%04x", board[i]);
 	}
 }
 
@@ -106,7 +107,7 @@ void newBlock()
 
 void drawBlock(int x)
 {
-	unsigned int temp = block;
+	TETRINTEGER temp = block;
 	unsigned int mask = 0x3;		// 0000000000000011b
 	unsigned int resultX, resultY;
 	char out;
@@ -162,9 +163,10 @@ void drawBoard()
 // Check collisions. Return 0 if no, 1 if yes
 
 
-int checkCollide(char dir, unsigned int *given)
+int checkCollide(int dir, TETRINTEGER *given)
 {
-	tetrInteger temp = *given, bit = 0x0;
+	TETRINTEGER temp = *given;
+	unsigned int bit = 0x0;
 	int curr_X, curr_Y;
 	int ofs_X = 0x0, ofs_Y = 0x0;
 	int row, col;
@@ -185,8 +187,10 @@ int checkCollide(char dir, unsigned int *given)
 		case GODOWN:
 			ofs_Y++;
 		break;
-
-		default: break;
+	
+		// we don't need to change the offset with rotation.
+		default: 
+		break;
 	}
 
 	for( int i = 0; i < 4; i++ )
@@ -238,7 +242,7 @@ int checkCollide(char dir, unsigned int *given)
 //		0001 -> 0100 -> 1001 -> 0110
 //		0x1	0x4	0x9	0x6
 
-void rotateBlock( unsigned int *given )
+void rotateBlock( TETRINTEGER *given )
 {
 	if ( *given == 0x159D ) 	*given = block_I;
 	else if ( *given == block_I ) 	*given = 0x159D;
@@ -246,8 +250,8 @@ void rotateBlock( unsigned int *given )
 
 	else
 	{
-		unsigned int current = 0x0;
-		unsigned int accumulate = 0x0;
+		TETRINTEGER current = 0x0;
+		TETRINTEGER accumulate = 0x0;
 
 		for( int i = 0; i < 16; i += 4 )
 		{
@@ -272,7 +276,7 @@ void rotateBlock( unsigned int *given )
 			accumulate = (accumulate << 4) | current;
 		}
 
-		if (!checkCollide(4, &accumulate))
+		if (!checkCollide(SPIN, &accumulate))
 		{
 			*given = accumulate;
 		}
@@ -282,24 +286,28 @@ void rotateBlock( unsigned int *given )
 
 // Check for full line /////////////////////////////////////////////////////////////
 
-void checkLine(int L)
+void checkBoard()
 {
-	// 10x 1 digits, a full line
-	if ( ( board[L] & 0x3FF ) == 0x3FF )
-	{
-		for ( int i = L; i > 0; i--)
+	int offset = 0;
+	
+	for ( int i = 19; i > 0 + offset; i-- )
+	{	
+		if ( board[i] == 0x7FE)
 		{
-			board[L] = board[L-1];
+			offset++;
 		}
-
-		board[0] = 0x0;
+		
+		board[i] = board[i-offset];
 	}
+	
+	board[0] = 0x0;
 }
+
 // Write block to game board
 
-void writeBlock(tetrInteger *given)
+void writeBlock(TETRINTEGER *given)
 {
-	tetrInteger temp_block = *given;
+	TETRINTEGER temp_block = *given;
 
 	unsigned int temp1, temp2;
 
@@ -312,9 +320,11 @@ void writeBlock(tetrInteger *given)
 		temp_block = temp_block >> 2;
 
 		board[temp2] = board[temp2] + (0x1 << (10-temp1));
-		checkLine(temp2);
 	}
-
+	
+	
+	checkBoard();
+		
 	DEBUG();
 }
 
@@ -334,7 +344,7 @@ void sighandler(int signum)
 	{
 		writeBlock(&block);
 		newBlock();
-
+		
 		ULPX = 4;
 		ULPY = 0;
 
