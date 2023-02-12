@@ -12,16 +12,33 @@
 #define GODOWN 2
 #define SPIN 3
 
+
+// Anchor ///////////////////////////////////////////////////////////////////////////////
+// Chars can represent 256 total values; we only need up to 20 per y, and 10 per x.
+// 2 chars together make a short int.
+// ULPX in lower half of te anchor so it may be more easily decremented.
+
+unsigned short int ANCHOR;
+
+#define ANCHOR_RESET ANCHOR = 0x5; 
+//y=0, x=4; 0000 0100 b => 0x04 h
+
+#define ULPY_GET ((ANCHOR >> 8) & 0xFF) - 1
+#define ULPY_INC ANCHOR += 0x100
+
+#define ULPX_GET (ANCHOR & 0xFF) - 1
+#define ULPX_INC ANCHOR += 0x1
+#define ULPX_DEC ANCHOR -= 0x1
+
+
+// Global Variables /////////////////////////////////////////////////////////////////////
 #define TETRINTEGER unsigned short int
 #define BOARDTYPE unsigned short int
 
-// Global Variables /////////////////////////////////////////////////////////////////////
-
-char		ULPY, ULPX;
-BOARDTYPE 	board[20] = {0};
-TETRINTEGER	block = 0;
-int 		level = 9;
-int 		score = 0, blockState = 0;
+BOARDTYPE 		board[20] = {0};
+TETRINTEGER		block = 0;
+unsigned char		level = 9;
+//int 			score = 0;
 
 // Blocks
 /* 00 01 10 11
@@ -44,11 +61,15 @@ TETRINTEGER block_Z = 0x0156; 	// 0000010001011001b
 
 void sighandler(int);
 
+/*
 void DEBUG()
 {
+	//mvprintw(40,4,"ULPY: %03hu", ULPY_GET);
+	//mvprintw(41,4,"ULPX: %03hu", ULPX_GET);
+	
 	for (int i = 0; i < 20; i++)
 	{
-		for (int j = 16; j > 0; j--)
+		for (int j = 16; j >= 0; j--)
 		{
 			mvprintw(i, 30 - j, "%c", ((board[i] >> j) & 0x1) + '0');
 			refresh();
@@ -57,15 +78,15 @@ void DEBUG()
 		mvprintw(i, 50, "%04x", board[i]);
 	}
 }
-
-
-// Generate new tetromino
+*/
 
 
 // Set tetromino in play /////////////////////////////////////////////////////////////
 
 void newBlock()
 {
+	ANCHOR_RESET;
+	
 	int nextBlock = rand() % 7;
 
 	switch(nextBlock)
@@ -108,7 +129,6 @@ void newBlock()
 void drawBlock(int x)
 {
 	TETRINTEGER temp = block;
-	unsigned int mask = 0x3;		// 0000000000000011b
 	unsigned int resultX, resultY;
 	char out;
 
@@ -119,11 +139,13 @@ void drawBlock(int x)
 
 	for( int i = 0; i < 4; i++ )
 	{
-		resultX = temp & mask;
+		// 0x3 is a 2-bit mask.
+		resultX = temp & 0x3;
 		temp = temp >> 2;
-		resultY = temp & mask;
+		resultY = temp & 0x3;
 		temp = temp >> 2;
-		mvprintw(ULPY + resultY, ULPX + resultX, "%c", out);
+		
+		mvprintw(ULPY_GET + resultY, ULPX_GET + resultX, "%c", out);
 	}
 
 	refresh();
@@ -140,7 +162,7 @@ void drawBoard()
 		move(i, 0);
 		temp1 = board[i];
 
-		for (int j = 10; j > 0; j--)
+		for (int j = 9; j >= 0; j--)
 		{
 			temp2 = (board[i] >> j);
 
@@ -213,13 +235,16 @@ int checkCollide(int dir, TETRINTEGER *given)
 		//	&mask	000000001
 		//	==	000000000 => false
 
-		row = ULPY + curr_Y + ofs_Y;
-		col = ULPX + curr_X + ofs_X;
-
+		row = ULPY_GET + curr_Y + ofs_Y;
+		col = ULPX_GET + curr_X + ofs_X;
+		
+		mvprintw(44+i*2,4,"Checked row:    %03hu", row);
+		mvprintw(45+i*2,4,"Checked column: %03hu", col);
+		
 		if ( row < 0 || row > 19 || col < 0 || col > 9 )
 			return 1;
 
-		bit = ( board[row] >> ( 10 - col ) ) & 0x1;
+		bit = ( board[row] >> ( 9 - col ) ) & 0x1;
 
 		if (bit)
 			return 1;
@@ -292,7 +317,7 @@ void checkBoard()
 	
 	for ( int i = 19; i > 0 + offset; i-- )
 	{	
-		if ( board[i] == 0x7FE)
+		if ( board[i] == 0x3FF)
 		{
 			offset++;
 		}
@@ -309,17 +334,17 @@ void writeBlock(TETRINTEGER *given)
 {
 	TETRINTEGER temp_block = *given;
 
-	unsigned int temp1, temp2;
+	unsigned int temp_col, temp_row;
 
 	for ( int i = 0; i < 4; i++ )
 	{
-		temp1 = ULPX + (temp_block & 0x3);
+		temp_col = ULPX_GET + (temp_block & 0x3);
 		temp_block = temp_block >> 2;
 
-		temp2 = ULPY + (temp_block & 0x3);
+		temp_row = ULPY_GET + (temp_block & 0x3);
 		temp_block = temp_block >> 2;
 
-		board[temp2] = board[temp2] + (0x1 << (10-temp1));
+		board[temp_row] = board[temp_row] + (0x1 << (9-temp_col));
 	}
 	
 	
@@ -336,17 +361,16 @@ void sighandler(int signum)
 
 	if (!checkCollide(GODOWN, &block))
 	{
-		ULPY++;
+		ULPY_INC;
 		ualarm((useconds_t)(level * 100000), 0);
 	}
 
 	else
 	{
 		writeBlock(&block);
-		newBlock();
+		drawBoard();
 		
-		ULPX = 4;
-		ULPY = 0;
+		newBlock();
 
 		sighandler(SIGALRM);
 	}
@@ -367,16 +391,15 @@ void gameloop() {
 
 	newBlock();
 
-	ULPY = 0;
-	ULPX = 4;
-
 	int ch = 'p';
 
 	signal(SIGALRM,sighandler); // Register signal handler
 	ualarm((useconds_t)(level * 100000), 0);
-
+	
 	while (ch != 'e')
 	{
+		DEBUG();
+		refresh();
 		drawBoard();
 		drawBlock(1);
 		refresh();
@@ -392,13 +415,13 @@ void gameloop() {
 			// check left:
 			case 'a':
 				if (!checkCollide(GOLEFT, &block))
-					ULPX--;
+					ULPX_DEC;
 			break;
 
 			// check right:
 			case 'd':
 				if (!checkCollide(GORIGHT, &block))
-					ULPX++;
+					ULPX_INC;
 			break;
 
 			//check down
@@ -408,8 +431,6 @@ void gameloop() {
 
 			// new block (debug!)
 			case 'b':
-				ULPX = 4;
-				ULPY = 0;
 				newBlock();
 			break;
 
@@ -437,9 +458,10 @@ int main(){
 int main()
 {
 	initscr();			// Begin curses
+	curs_set(0);
 	gameloop();
 
 	endwin();			// End curses mode
-
+	curs_set(1);
 	return 0;
 }
