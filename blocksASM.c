@@ -61,7 +61,7 @@ TETRINTEGER block_Z = 0x0156; 	// 0000010001011001b
 
 void sighandler(int);
 
-/*
+
 void DEBUG()
 {
 	//mvprintw(40,4,"ULPY: %03hu", ULPY_GET);
@@ -78,7 +78,7 @@ void DEBUG()
 		mvprintw(i, 50, "%04x", board[i]);
 	}
 }
-*/
+
 
 
 // Set tetromino in play /////////////////////////////////////////////////////////////
@@ -130,12 +130,12 @@ void drawBlock(int x)
 {
 	TETRINTEGER temp = block;
 	unsigned int resultX, resultY;
-	char out;
+	char* out;
 
 	if (x)
-		out = '#';
+		out = "[]";
 	else
-		out = ' ';
+		out = " .";
 
 	for( int i = 0; i < 4; i++ )
 	{
@@ -145,7 +145,7 @@ void drawBlock(int x)
 		resultY = temp & 0x3;
 		temp = temp >> 2;
 		
-		mvprintw(ULPY_GET + resultY, ULPX_GET + resultX, "%c", out);
+		mvprintw(ULPY_GET + resultY, (ULPX_GET + resultX) * 2, "%s", out);
 	}
 
 	refresh();
@@ -168,12 +168,12 @@ void drawBoard()
 
 			if (temp2 & 0x1)
 			{
-				printw("#");
+				printw("[]");
 			}
 
 			else
 			{
-				printw(" ");
+				printw(" .");
 			}
 		}
 	}
@@ -311,21 +311,15 @@ void rotateBlock( TETRINTEGER *given )
 
 // Check for full line /////////////////////////////////////////////////////////////
 
-void checkBoard()
-{
-	int offset = 0;
+void checkLine(int line) {
 	
-	for ( int i = 19; i > 0 + offset; i-- )
-	{	
-		if ( board[i] == 0x3FF)
+	if (board[line] == 0x3FF) { //if row full, compare = 1 or TRUE
+	
+		for (int i = line; i > 0; i--) 
 		{
-			offset++;
+			board[i] = board[i-1];
 		}
-		
-		board[i] = board[i-offset];
 	}
-	
-	board[0] = 0x0;
 }
 
 // Write block to game board
@@ -333,7 +327,7 @@ void checkBoard()
 void writeBlock(TETRINTEGER *given)
 {
 	TETRINTEGER temp_block = *given;
-
+	int temp_rows[4] = {0,0,0,0};
 	unsigned int temp_col, temp_row;
 
 	for ( int i = 0; i < 4; i++ )
@@ -347,8 +341,20 @@ void writeBlock(TETRINTEGER *given)
 		board[temp_row] = board[temp_row] + (0x1 << (9-temp_col));
 	}
 	
+	// Clearing lines
 	
-	checkBoard();
+	for ( int j = 0; j < 20; j++ )
+	{
+		if ( board[j] == 0x3FF )
+		{
+			for ( int k = j; k > 1; k--)
+			{
+				board[k] = board[k-1];
+			}
+			
+			board[0] = 0;
+		}
+	}
 		
 	DEBUG();
 }
@@ -385,7 +391,7 @@ void gameloop() {
 	// draw blank board
 	for ( int i = 0; i < 20; i++ )
 	{
-		move(i,10);
+		move(i,20);
 		printw("|");
 	}
 
@@ -398,7 +404,7 @@ void gameloop() {
 	
 	while (ch != 'e')
 	{
-		DEBUG();
+		//DEBUG();
 		refresh();
 		drawBoard();
 		drawBlock(1);
@@ -439,21 +445,6 @@ void gameloop() {
 	}
 }
 
-
-/*
-// Main /////////////////////////////////////////////////////////////
-
-int main(){
-	time_t t;
-	srand((unsigned) time(&t));	// Use current time to seed random number generation
-
-	initscr();			// Begin curses
-	gameloop();			// active game code
-	endwin();			// End curses mode
-
-	return 0;
-}
-*/
 
 int main()
 {
