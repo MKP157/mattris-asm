@@ -151,9 +151,9 @@ void drawBlock(int x)
 _loop:
 	// 0x3 is a 2-bit mask.
 	resultX = temp & 0x3;
-	temp = temp >> 2;
+	temp >>= 2;
 	resultY = temp & 0x3;
-	temp = temp >> 2;
+	temp >>= 2;
 		
 	mvprintw(ULPY_GET + resultY, (ULPX_GET + resultX) * 2, "%s", out);
 	
@@ -168,10 +168,11 @@ _loop:
 void drawBoard()
 {
 	int temp1, temp2;
-	short int i = 0, j = 9;
+	short int i = 0, j;
 _L1:
-		move(i, 0);
-		temp1 = board[i];
+	move(i, 0);
+	temp1 = board[i];
+	j = 9;
 _L2:
 	temp2 = (board[i] >> j);
 
@@ -183,8 +184,6 @@ _L2:
 		
 	j--;
 	if (j >= 0) goto _L2;
-	
-	j = 9;
 	i++;
 	if (i < 20) goto _L1;
 
@@ -221,63 +220,52 @@ int checkCollide(int dir, TETRINTEGER *given)
 		break;
 	
 		// we don't need to change the offset with rotation.
-		default: 
-		break;
+		default:
 	}
+	
+	short int i = 0;
+_Loop:
+	curr_X = temp & 0x3;
+	temp >>= 2;
+	curr_Y = temp & 0x3;
+	temp >>= 2;
+	
+	// shift all values of board right until focus bit is LSD;
+	// ex: want bit #3
+	// board[n] =   001010110 >> 3-1
+	//		000010101
+	//	&mask	000000001
+	//	==	000000001 => true
+	//
+	// ex: want bit #6
+	// board[n] =   001010110 >> 6-1
+	//		000000010
+	//	&mask	000000001
+	//	==	000000000 => false
+	
+	row = ULPY_GET + curr_Y + ofs_Y;
+	col = ULPX_GET + curr_X + ofs_X;
+	
+	/* Debug
+	mvprintw(44+i*2,4,"Checked row:    %03hu", row);
+	mvprintw(45+i*2,4,"Checked column: %03hu", col);
+	*/
+	
+	if ( row < 0 || row > 19 || col < 0 || col > 9 )
+		return 1;
 
-	for( int i = 0; i < 4; i++ )
-	{
-		curr_X = temp & 0x3;
-		temp = temp >> 2;
-		curr_Y = temp & 0x3;
-		temp = temp >> 2;
+	bit = ( board[row] >> ( 9 - col ) ) & 0x1;
 
-		// shift all values of board right until focus bit is LSD;
-		// ex: want bit #3
-		// board[n] =   001010110 >> 3-1
-		//		000010101
-		//	&mask	000000001
-		//	==	000000001 => true
-		//
-		// ex: want bit #6
-		// board[n] =   001010110 >> 6-1
-		//		000000010
-		//	&mask	000000001
-		//	==	000000000 => false
-
-		row = ULPY_GET + curr_Y + ofs_Y;
-		col = ULPX_GET + curr_X + ofs_X;
-		
-		/* Debug
-		mvprintw(44+i*2,4,"Checked row:    %03hu", row);
-		mvprintw(45+i*2,4,"Checked column: %03hu", col);
-		*/
-		
-		if ( row < 0 || row > 19 || col < 0 || col > 9 )
-			return 1;
-
-		bit = ( board[row] >> ( 9 - col ) ) & 0x1;
-
-		if (bit)
-			return 1;
-	}
+	if (bit)
+		return 1;
+	
+	i++;
+	if (i < 4) goto _Loop;
 
 	return 0;
 }
 
 // rotate block both in theory and on game board
-// Pattern:
-//	Outer:
-//		0000 -> 1000 -> 1010 -> 0010
-//		0x0	0x8	0xA	0x2
-//
-//	Middle:
-//		0101 -> 0101
-//		0x5	0x5
-//
-//	Outer:
-//		0001 -> 0100 -> 1001 -> 0110
-//		0x1	0x4	0x9	0x6
 
 void rotateBlock( TETRINTEGER *given )
 {
@@ -289,29 +277,45 @@ void rotateBlock( TETRINTEGER *given )
 	{
 		TETRINTEGER current = 0x0;
 		TETRINTEGER accumulate = 0x0;
+		
+		short int i = 0;
+	_Loop:
+		unsigned int temp = *given;
+		current = (temp & (0xF << i)) >> i;
+		
+		// Because most block occupy at most a 3x3 plane,
+		// 
+		//	Outer:
+		//		0000 -> 1000 -> 1010 -> 0010
+		//		0x0	0x8	0xA	0x2
+		//
+		//	Middle:
+		//		0101 -> 0101
+		//		0x5	0x5
+		//
+		//	Outer:
+		//		0001 -> 0100 -> 1001 -> 0110
+		//		0x1	0x4	0x9	0x6
 
-		for( int i = 0; i < 16; i += 4 )
+		switch (current)
 		{
-			unsigned int temp = *given;
-			current = (temp & (0xF << i)) >> i;
+			case 0x0:	current = 0x8;	break;
+			case 0x8:	current = 0xA;	break;
+			case 0xA:	current = 0x2;	break;
+			case 0x2:	current = 0x0;	break;
+			
+			case 0x1:	current = 0x4;	break;
+			case 0x4:	current = 0x9; 	break;
+			case 0x9:	current = 0x6; 	break;
+			case 0x6:	current = 0x1;	break;
 
-			switch (current)
-			{
-				case 0x0:	current = 0x8;	break;
-				case 0x8:	current = 0xA;	break;
-				case 0xA:	current = 0x2;	break;
-				case 0x2:	current = 0x0;	break;
-
-				case 0x1:	current = 0x4;	break;
-				case 0x4:	current = 0x9; 	break;
-				case 0x9:	current = 0x6; 	break;
-				case 0x6:	current = 0x1;	break;
-
-				default: break;
-			}
-
-			accumulate = (accumulate << 4) | current;
+			default:
 		}
+
+		accumulate = (accumulate << 4) | current;
+		
+		i += 4;
+		if (i < 16) goto _Loop;
 
 		if (!checkCollide(SPIN, &accumulate))
 		{
@@ -321,19 +325,6 @@ void rotateBlock( TETRINTEGER *given )
 
 }
 
-// Check for full line /////////////////////////////////////////////////////////////
-
-void checkLine(int line) {
-	
-	if (board[line] == 0x3FF) { //if row full, compare = 1 or TRUE
-	
-		for (int i = line; i > 0; i--) 
-		{
-			board[i] = board[i-1];
-		}
-	}
-}
-
 // Write block to game board
 
 void writeBlock(TETRINTEGER *given)
@@ -341,32 +332,40 @@ void writeBlock(TETRINTEGER *given)
 	TETRINTEGER temp_block = *given;
 	int temp_rows[4] = {0,0,0,0};
 	unsigned int temp_col, temp_row;
+	
+	short int i = 0;
 
-	for ( int i = 0; i < 4; i++ )
-	{
-		temp_col = ULPX_GET + (temp_block & 0x3);
-		temp_block = temp_block >> 2;
+_writeLoop:
+	temp_col = ULPX_GET + (temp_block & 0x3);
+	temp_block >>= 2;
 
-		temp_row = ULPY_GET + (temp_block & 0x3);
-		temp_block = temp_block >> 2;
+	temp_row = ULPY_GET + (temp_block & 0x3);
+	temp_block >>= 2;
 
-		board[temp_row] = board[temp_row] + (0x1 << (9-temp_col));
-	}
+	board[temp_row] = board[temp_row] + (0x1 << (9-temp_col));
+	
+	i++;
+	if (i < 4) goto _writeLoop;
 	
 	// Clearing lines
+	short int j = 0, k;
+
+_checkLineLoop:
 	
-	for ( int j = 0; j < 20; j++ )
+	if ( board[j] == 0x3FF )
 	{
-		if ( board[j] == 0x3FF )
-		{
-			for ( int k = j; k > 1; k--)
-			{
-				board[k] = board[k-1];
-			}
-			
-			board[0] = 0;
-		}
+		k = j;
+	
+_clearLineLoop:
+		board[k] = board[k-1];
+		k--;
+		if (k > 1) goto _clearLineLoop;
+		
+		board[0] = 0;
 	}
+	
+	j++;
+	if (j < 20) goto _checkLineLoop;
 		
 	drawBoard();
 	refresh();
@@ -400,13 +399,15 @@ void sighandler(int signum)
 
 void gameloop() {
 
-	// draw blank board
-	for ( int i = 0; i < 20; i++ )
-	{
-		move(i,20);
-		printw("|");
-	}
+	// draw board border
+	int borderLoop_i = 0;
 
+_borderLoop:
+	move(borderLoop_i,20);
+	printw("|");
+	borderLoop_i++;
+	if (borderLoop_i < 20) goto _borderLoop;
+	
 	newBlock();
 	drawBoard();
 	
@@ -415,46 +416,45 @@ void gameloop() {
 	signal(SIGALRM,sighandler); // Register signal handler
 	ualarm((useconds_t)(level * 100000), 0);
 	
-	while (ch != 'e')
-	{
-		//DEBUG();
-		refresh();
-		drawBlock(1);
-		refresh();
-		ch = getchar();
-		drawBlock(0);
+_gameLoop:
+	//DEBUG();
+	refresh();
+	drawBlock(1);
+	refresh();
+	ch = getchar();
+	drawBlock(0);
 
-		switch(ch) {
-			// rotate
-			case 'w':
-				rotateBlock(&block);
-			break;
+	switch(ch) {
+		// rotate
+		case 'w':
+			rotateBlock(&block);
+		break;
 
-			// check left:
-			case 'a':
-				if (!checkCollide(GOLEFT, &block))
-					ULPX_DEC;
-			break;
+		// check left:
+		case 'a':
+			if (!checkCollide(GOLEFT, &block))
+				ULPX_DEC;
+		break;
 
-			// check right:
-			case 'd':
-				if (!checkCollide(GORIGHT, &block))
-					ULPX_INC;
-			break;
+		// check right:
+		case 'd':
+			if (!checkCollide(GORIGHT, &block))
+				ULPX_INC;
+		break;
 
-			//check down
-			case 's':
-				sighandler(SIGALRM);
-			break;
+		//check down
+		case 's':
+			sighandler(SIGALRM);
+		break;
 
-			// new block (debug!)
-			case 'b':
-				newBlock();
-			break;
-
-			default: break;
-		}
+		// new block (debug!)
+		case 'b':
+			newBlock();
+		break;
+		default: break;
 	}
+	
+	if (ch != 'e') goto _gameLoop;
 }
 
 
@@ -462,6 +462,10 @@ int main()
 {
 	initscr();			// Begin curses
 	curs_set(0);
+	
+	time_t t;
+	srand((unsigned) time(&t));
+	
 	gameloop();
 
 	endwin();			// End curses mode
