@@ -11,6 +11,8 @@ So far, these changes include:
 - All instances of conditional loops have been rewritten into their respective 'goto' loop counterparts, to become familar with assembly's conditional jumps. C's 'goto' functionality is identical to that of assembly's.
 
 # Compiling the C source code
+I recommend compiling the code within the latest release.
+
 To run the C version of _mattris_, you must be running a Linux or UNIX-like operating system. This is because the code makes extensive use of the 'ncurses' library, which directly manipulates terminal graphics. As far as I am aware, 'ncurses' has no actively maintained Windows terminal implementation. I have used 'ncurses' successfully on Debian Linux distrobutions, as well as Apple's macOS through the Homebrew package manager (https://brew.sh/). To compile, I use GCC, though I presume you may use others.
 
 **To install 'ncurses' on Debian:**
