@@ -49,13 +49,14 @@ unsigned char		level = 9;
 
 */
 
-TETRINTEGER block_T = 0x4569;	// 0100010101101001b
-TETRINTEGER block_I = 0x4567;	// 0000000100100011b
-TETRINTEGER block_O = 0x569A;	// 0000010000010101b
-TETRINTEGER block_J = 0x0456;	// 0000010001010110b
-TETRINTEGER block_L = 0x4562;	// 0000000100100100b
-TETRINTEGER block_S = 0x4512; 	// 0001010101001000b
-TETRINTEGER block_Z = 0x0156; 	// 0000010001011001b
+// Blocks are macros, because they are constants.
+#define block_T 0x4569		// 0100010101101001b
+#define block_I 0x4567		// 0000000100100011b
+#define block_O 0x569A		// 0000010000010101b
+#define block_J 0x0456		// 0000010001010110b
+#define block_L 0x4562		// 0000000100100100b
+#define block_S 0x4512 		// 0001010101001000b
+#define block_Z 0x0156		// 0000010001011001b
 
 // Methods //////////////////////////////////////////////////////////////////////////////
 
@@ -66,17 +67,25 @@ void DEBUG()
 {
 	//mvprintw(40,4,"ULPY: %03hu", ULPY_GET);
 	//mvprintw(41,4,"ULPX: %03hu", ULPX_GET);
+	short int i = 0;
+	short int j = 16;
 	
-	for (int i = 0; i < 20; i++)
-	{
-		for (int j = 16; j >= 0; j--)
-		{
-			mvprintw(i, 30 - j, "%c", ((board[i] >> j) & 0x1) + '0');
-			refresh();
-		}
-		
-		mvprintw(i, 50, "%04x", board[i]);
-	}
+_loop:
+	// row-traversal for-loop ////////////////////////////////
+	
+		// column-traversal for-loop /////////////////////////////
+		mvprintw(i, 45 - j, "%c", ((board[i] >> j) & 0x1) + '0');
+		refresh();
+		j--;
+		if (j >= 0) goto _loop;
+		//////////////////////////////////////////////////////////
+	
+	mvprintw(i, 46, " => 0x%04X", board[i]);
+	
+	j = 16;
+	i++;
+	if (i < 20) goto _loop;
+	//////////////////////////////////////////////////////////
 }
 
 
@@ -88,7 +97,8 @@ void newBlock()
 	ANCHOR_RESET;
 	
 	int nextBlock = rand() % 7;
-
+	
+	
 	switch(nextBlock)
 	{
 			case 0:	// T
@@ -136,17 +146,19 @@ void drawBlock(int x)
 		out = "[]";
 	else
 		out = " .";
-
-	for( int i = 0; i < 4; i++ )
-	{
-		// 0x3 is a 2-bit mask.
-		resultX = temp & 0x3;
-		temp = temp >> 2;
-		resultY = temp & 0x3;
-		temp = temp >> 2;
+	
+	short int i = 0;
+_loop:
+	// 0x3 is a 2-bit mask.
+	resultX = temp & 0x3;
+	temp = temp >> 2;
+	resultY = temp & 0x3;
+	temp = temp >> 2;
 		
-		mvprintw(ULPY_GET + resultY, (ULPX_GET + resultX) * 2, "%s", out);
-	}
+	mvprintw(ULPY_GET + resultY, (ULPX_GET + resultX) * 2, "%s", out);
+	
+	i++;
+	if (i < 4) goto _loop;
 
 	refresh();
 }
@@ -156,27 +168,25 @@ void drawBlock(int x)
 void drawBoard()
 {
 	int temp1, temp2;
-
-	for (int i = 0; i < 20; i++)
-	{
+	short int i = 0, j = 9;
+_L1:
 		move(i, 0);
 		temp1 = board[i];
+_L2:
+	temp2 = (board[i] >> j);
 
-		for (int j = 9; j >= 0; j--)
-		{
-			temp2 = (board[i] >> j);
-
-			if (temp2 & 0x1)
-			{
-				printw("[]");
-			}
-
-			else
-			{
-				printw(" .");
-			}
-		}
-	}
+	if (temp2 & 0x1)
+		printw("[]");
+	
+	else
+		printw(" .");
+		
+	j--;
+	if (j >= 0) goto _L2;
+	
+	j = 9;
+	i++;
+	if (i < 20) goto _L1;
 
 	refresh();
 }
@@ -238,8 +248,10 @@ int checkCollide(int dir, TETRINTEGER *given)
 		row = ULPY_GET + curr_Y + ofs_Y;
 		col = ULPX_GET + curr_X + ofs_X;
 		
+		/* Debug
 		mvprintw(44+i*2,4,"Checked row:    %03hu", row);
 		mvprintw(45+i*2,4,"Checked column: %03hu", col);
+		*/
 		
 		if ( row < 0 || row > 19 || col < 0 || col > 9 )
 			return 1;
@@ -356,6 +368,8 @@ void writeBlock(TETRINTEGER *given)
 		}
 	}
 		
+	drawBoard();
+	refresh();
 	DEBUG();
 }
 
@@ -373,11 +387,9 @@ void sighandler(int signum)
 
 	else
 	{
+		drawBlock(1);
 		writeBlock(&block);
-		drawBoard();
-		
 		newBlock();
-
 		sighandler(SIGALRM);
 	}
 
@@ -396,7 +408,8 @@ void gameloop() {
 	}
 
 	newBlock();
-
+	drawBoard();
+	
 	int ch = 'p';
 
 	signal(SIGALRM,sighandler); // Register signal handler
@@ -406,7 +419,6 @@ void gameloop() {
 	{
 		//DEBUG();
 		refresh();
-		drawBoard();
 		drawBlock(1);
 		refresh();
 		ch = getchar();
