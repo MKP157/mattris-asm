@@ -62,7 +62,7 @@ unsigned char		level = 9;
 
 void sighandler(int);
 
-
+/*
 void DEBUG()
 {
 	//mvprintw(40,4,"ULPY: %03hu", ULPY_GET);
@@ -86,7 +86,7 @@ _loop:
 	i++;
 	if (i < 20) goto _loop;
 	//////////////////////////////////////////////////////////
-}
+}*/
 
 
 
