@@ -45,10 +45,10 @@ unsigned short int ANCHOR;
 #define block_T 0x4569		// 0100010101101001b
 #define block_I 0x4567		// 0000000100100011b
 #define block_O 0x569A		// 0000010000010101b
-#define block_J 0x0456		// 0000010001010110b
-#define block_L 0x4562		// 0000000100100100b
-#define block_S 0x4512 		// 0001010101001000b
-#define block_Z 0x0156		// 0000010001011001b
+#define block_J 0x456A		// 0000010001010110b
+#define block_L 0x5679		// 0000000100100100b
+#define block_S 0x679A 		// 0001010101001000b
+#define block_Z 0x459A		// 0000010001011001b
 
 // Global Variables /////////////////////////////////////////////////////////////////////
 
