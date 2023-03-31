@@ -10,6 +10,9 @@ So far, these changes include:
 - All associated block-operations have been modified to account for the TetrInteger's structure. For example, accessing an individual block coordinate requires bit-shifting, rather than accessing a distinct array value.
 - All instances of conditional loops have been rewritten into their respective 'goto' loop counterparts, to become familar with assembly's conditional jumps. C's 'goto' functionality is identical to that of assembly's.
 
+# ASM Rewrites
+- "rotate.s" : The block rotation function, completely rewritten into assembly and linked to the C program. 
+
 # Compiling the C source code
 I recommend compiling the code within the latest release.
 
@@ -23,6 +26,6 @@ To run the C version of _mattris_, you must be running a Linux or UNIX-like oper
 **To compile:**
 1. Using your terminal, navigate to where you have stored the blocksASM.c source file.
 
-2. Compile with `gcc -o blocksASM blocksASM.c -lncurses` .
+2. Compile with `gcc -o blocksASM blocksASM.c rotate.s -lncurses` .
 
 3. Run with `./blocksASM` .
