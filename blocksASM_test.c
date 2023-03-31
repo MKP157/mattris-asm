@@ -223,7 +223,9 @@ void writeBlock(TETRINTEGER *given)
 		temp_row = ULPY_GET + (temp_block & 0x3);
 		temp_block >>= 2;
 		
-		// Gameover/Error condition
+		// Gameover/Error condition.
+		// It is a part of the block-writing function so that
+		// we avoid segmentation faults.
 		if ( board[temp_row] & (0x1 << (9-temp_col)) )
 		{
 			endwin();
