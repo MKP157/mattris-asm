@@ -12,8 +12,6 @@
 #define GODOWN 2
 #define SPIN 3
 
-#define TETRINTEGER unsigned short int
-#define BOARDTYPE unsigned short int
 
 // Anchor ///////////////////////////////////////////////////////////////////////////////
 // Chars can represent 256 total values; we only need up to 20 per y, and 10 per x.
@@ -22,7 +20,7 @@
 
 unsigned short int ANCHOR;
 
-#define ANCHOR_RESET ANCHOR = 0x104; 
+#define ANCHOR_RESET ANCHOR = 0x5; 
 //y=0, x=4; 0000 0100 b => 0x04 h
 
 #define ULPY_GET ((ANCHOR >> 8) & 0xFF) - 1
@@ -33,6 +31,15 @@ unsigned short int ANCHOR;
 #define ULPX_DEC ANCHOR -= 0x1
 
 
+// Global Variables /////////////////////////////////////////////////////////////////////
+#define TETRINTEGER unsigned short int
+#define BOARDTYPE unsigned short int
+
+BOARDTYPE 		board[20] = {0};
+TETRINTEGER		block = 0;
+unsigned char		level = 9;
+//int 			score = 0;
+
 // Blocks
 /* 00 01 10 11
 00
@@ -41,35 +48,91 @@ unsigned short int ANCHOR;
 11
 
 */
-/* Anchor at top-left: */
+
+// Blocks are macros, because they are constants.
 #define block_T 0x4569		// 0100010101101001b
 #define block_I 0x4567		// 0000000100100011b
 #define block_O 0x569A		// 0000010000010101b
-#define block_J 0x456A		// 0000010001010110b
-#define block_L 0x5679		// 0000000100100100b
-#define block_S 0x679A 		// 0001010101001000b
-#define block_Z 0x459A		// 0000010001011001b
-
-// Global Variables /////////////////////////////////////////////////////////////////////
-
-BOARDTYPE 		board[20] = {0};
-TETRINTEGER		block = 0;
-const TETRINTEGER	possibleBlocks[7] = {block_T, block_I, block_O, block_J, block_L, block_S, block_Z};
-unsigned char		level = 9;
-//int 			score = 0;
-
+#define block_J 0x0456		// 0000010001010110b
+#define block_L 0x4562		// 0000000100100100b
+#define block_S 0x4512 		// 0001010101001000b
+#define block_Z 0x0156		// 0000010001011001b
 
 // Methods //////////////////////////////////////////////////////////////////////////////
 
 void sighandler(int);
+
+/*
+void DEBUG()
+{
+	//mvprintw(40,4,"ULPY: %03hu", ULPY_GET);
+	//mvprintw(41,4,"ULPX: %03hu", ULPX_GET);
+	short int i = 0;
+	short int j = 16;
+	
+_loop:
+	// row-traversal for-loop ////////////////////////////////
+	
+		// column-traversal for-loop /////////////////////////////
+		mvprintw(i, 45 - j, "%c", ((board[i] >> j) & 0x1) + '0');
+		refresh();
+		j--;
+		if (j >= 0) goto _loop;
+		//////////////////////////////////////////////////////////
+	
+	mvprintw(i, 46, " => 0x%04X", board[i]);
+	
+	j = 16;
+	i++;
+	if (i < 20) goto _loop;
+	//////////////////////////////////////////////////////////
+}*/
+
+
 
 // Set tetromino in play /////////////////////////////////////////////////////////////
 
 void newBlock()
 {
 	ANCHOR_RESET;
-	block = possibleBlocks[ rand() % 7 ];
+	
+	int nextBlock = rand() % 7;
+	
+	
+	switch(nextBlock)
+	{
+			case 0:	// T
+			block = block_T;
+			break;
+
+			case 1:	// I
+			block = block_I;
+			break;
+
+			case 2: // O
+			block = block_O;
+			break;
+
+			case 3:  // J
+			block = block_J;
+			break;
+
+			case 4: // L
+			block = block_L;
+			break;
+
+			case 5: // S
+			block = block_S;
+			break;
+
+			case 6: // Z
+			block = block_Z;
+			break;
+
+			default: break;
+	}
 }
+
 
 // draw active block. parameter x: 0=erase, 1=draw
 
@@ -204,7 +267,63 @@ _Loop:
 
 // rotate block both in theory and on game board
 
-extern TETRINTEGER ASMrotateBlock ( TETRINTEGER given );
+void rotateBlock( TETRINTEGER *given )
+{
+	if ( *given == 0x159D ) 	*given = block_I;
+	else if ( *given == block_I ) 	*given = 0x159D;
+	else if ( *given == block_O);
+
+	else
+	{
+		TETRINTEGER current = 0x0;
+		TETRINTEGER accumulate = 0x0;
+		
+		short int i = 0;
+	_Loop:
+		unsigned int temp = *given;
+		current = (temp & (0xF << i)) >> i;
+		
+		// Because most block occupy at most a 3x3 plane,
+		// 
+		//	Outer:
+		//		0000 -> 1000 -> 1010 -> 0010
+		//		0x0	0x8	0xA	0x2
+		//
+		//	Middle:
+		//		0101 -> 0101
+		//		0x5	0x5
+		//
+		//	Outer:
+		//		0001 -> 0100 -> 1001 -> 0110
+		//		0x1	0x4	0x9	0x6
+
+		switch (current)
+		{
+			case 0x0:	current = 0x8;	break;
+			case 0x8:	current = 0xA;	break;
+			case 0xA:	current = 0x2;	break;
+			case 0x2:	current = 0x0;	break;
+			
+			case 0x1:	current = 0x4;	break;
+			case 0x4:	current = 0x9; 	break;
+			case 0x9:	current = 0x6; 	break;
+			case 0x6:	current = 0x1;	break;
+
+			default:
+		}
+
+		accumulate = (accumulate << 4) | current;
+		
+		i += 4;
+		if (i < 16) goto _Loop;
+
+		if (!checkCollide(SPIN, &accumulate))
+		{
+			*given = accumulate;
+		}
+	}
+
+}
 
 // Write block to game board
 
@@ -216,59 +335,41 @@ void writeBlock(TETRINTEGER *given)
 	
 	short int i = 0;
 
-	_writeLoop:
-		temp_col = ULPX_GET + (temp_block & 0x3);
-		temp_block >>= 2;
+_writeLoop:
+	temp_col = ULPX_GET + (temp_block & 0x3);
+	temp_block >>= 2;
+
+	temp_row = ULPY_GET + (temp_block & 0x3);
+	temp_block >>= 2;
+
+	board[temp_row] = board[temp_row] + (0x1 << (9-temp_col));
 	
-		temp_row = ULPY_GET + (temp_block & 0x3);
-		temp_block >>= 2;
-		
-		// Gameover/Error condition.
-		// It is a part of the block-writing function so that
-		// we avoid segmentation faults.
-		if ( board[temp_row] & (0x1 << (9-temp_col)) )
-		{
-			endwin();
-			
-			printf("   ___   _   __  __ ___    _____   _____ ___ \n");
-			printf("  / __| /_\\ |  \\/  | __|  / _ \\ \\ / / __| _ \\\n");
-			printf(" | (_ |/ _ \\| |\\/| | _|  | (_) \\ V /| _||   /\n");
-			printf("  \\___/_/ \\_\\_|  |_|___|  \\___/ \\_/ |___|_|_\\\n");
-			printf("... you stacked too high! Better luck next time.\n");
-			
-			curs_set(1);
-			exit(1);
-		}
-		
-		
-		board[temp_row] = board[temp_row] + (0x1 << (9-temp_col));
-		
-		i++;
-		if (i < 4) goto _writeLoop;
+	i++;
+	if (i < 4) goto _writeLoop;
 	
 	// Clearing lines
-	i = 0;
-	short int k;
+	short int j = 0, k;
 
-	_checkLineLoop:
+_checkLineLoop:
 	
-		if ( board[i] == 0x3FF )
-		{
-			k = i;
-		
-			_clearLineLoop:
-				board[k] = board[k-1];
-				k--;
-				if (k > 1) goto _clearLineLoop;
-		
-			board[0] = 0;
-		}
+	if ( board[j] == 0x3FF )
+	{
+		k = j;
 	
-		i++;
-		if (i < 20) goto _checkLineLoop;
+_clearLineLoop:
+		board[k] = board[k-1];
+		k--;
+		if (k > 1) goto _clearLineLoop;
+		
+		board[0] = 0;
+	}
+	
+	j++;
+	if (j < 20) goto _checkLineLoop;
 		
 	drawBoard();
 	refresh();
+	DEBUG();
 }
 
 // Signal handler (move down) /////////////////////////////////////////////////////////////
@@ -288,7 +389,6 @@ void sighandler(int signum)
 		drawBlock(1);
 		writeBlock(&block);
 		newBlock();
-		
 		sighandler(SIGALRM);
 	}
 
@@ -297,16 +397,16 @@ void sighandler(int signum)
 }
 // Game loop /////////////////////////////////////////////////////////////
 
-int gameloop() 
-{
+void gameloop() {
+
 	// draw board border
 	int borderLoop_i = 0;
 
-	_borderLoop:
-		move(borderLoop_i,20);
-		printw("|");
-		borderLoop_i++;
-		if (borderLoop_i < 20) goto _borderLoop;
+_borderLoop:
+	move(borderLoop_i,20);
+	printw("|");
+	borderLoop_i++;
+	if (borderLoop_i < 20) goto _borderLoop;
 	
 	newBlock();
 	drawBoard();
@@ -327,12 +427,7 @@ _gameLoop:
 	switch(ch) {
 		// rotate
 		case 'w':
-			TETRINTEGER temp = block;
-			temp = ASMrotateBlock(temp);
-			
-			if (!checkCollide(SPIN, &temp))
-				block = temp;
-			
+			rotateBlock(&block);
 		break;
 
 		// check left:
@@ -360,10 +455,6 @@ _gameLoop:
 	}
 	
 	if (ch != 'e') goto _gameLoop;
-	
-	gameOver:
-	
-	return 1;
 }
 
 
