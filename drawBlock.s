@@ -1,20 +1,15 @@
-section .data
-	draw .db "x", 0
-	erase .db ".", 0
+.intel_syntax noprefix
 
-section .text
-	.extern initscr
-	.extern refresh
-	.extern endwin
-	.extern getch
-	.extern exit
-	
-	.extern mvprintw
-	;.global drawBlock
-	.global _start
+.data
+draw: .ascii "x"
+erase: .ascii "."
 
-_start:
-	mov	rbx, 0x4569	; T block for demo
+.text
+
+.globl _dbstart, _initscr, _refresh, _endwin, _getch, _exit, _mvprintw
+
+_dbstart:
+	mov	rbx, 0x4569	# T block for demo
 	
 	call 	initscr
 	
@@ -32,16 +27,16 @@ _start:
 	syscall
 	
 drawBlock:
-	push	rbx		; save current block as a temp. block always rbx!
+	push	rbx		# save current block as a temp. block always rbx!
 	
-	test	rdi, rdi	; x param -> rdi. if x != 0, we want to print "[]"
+	test	rdi, rdi	# x param -> rdi. if x != 0, we want to print "[]"
 	
 	jne	.print0
-	mov	rdx, draw
+	mov	rdx, (draw)
 	jmp	.L1
 	
 .print0:
-	mov 	rdx, erase
+	mov 	rdx, (erase)
 
 .L1:
 	mov	r14, rbx
@@ -54,9 +49,12 @@ drawBlock:
 	
 	push 	rdi
 	
-	mov	rdi, r14	; param 1; y
-	mov	rsi, r15	; param 2: x
-	mov	rdx, rdx	; param 3: char/string
+	mov	rdi, r14	
+	# param 1; y
+	mov	rsi, r15	
+	# param 2: x
+	mov	rdx, rdx	
+	# param 3: char/string
 	mov 	rax, 0
 	call	mvprintw
 	
@@ -71,3 +69,6 @@ drawBlock:
 	pop	rbx
 	ret
 	
+.att_syntax noprefix
+
+
