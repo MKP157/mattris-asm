@@ -25,7 +25,6 @@ const TETRINTEGER	possibleBlocks[7] = {block_T, block_I, block_O, block_J, block
 void sighandler(int);
 
 /**************************************************
-*		Global definitions
 ***************************************************/
 void newBlock()
 {
@@ -56,7 +55,8 @@ void drawBlock(int x)
 		resultY = temp & 0x3;
 		temp >>= 2;*/
 		
-		asm volatile ( 
+		asm volatile 
+		( 
 			".intel_syntax noprefix;"
 			
 			"mov eax, ecx ;"
@@ -154,7 +154,8 @@ int checkCollide(int dir, TETRINTEGER *given)
 	short int i = 0;
 	
 	_Loop:
-		asm volatile ( 
+		asm volatile 
+		( 
 			".intel_syntax noprefix;"
 			
 			"push rcx ;"		// Preserve the current temporary block
@@ -172,18 +173,20 @@ int checkCollide(int dir, TETRINTEGER *given)
 			"shr rcx, 0x2 ;"
 			
 			"push rcx ;"		// Preserve the current temporary block
+			
 			/**************************************************
 			*		Board check
 			***************************************************/
-			"mov r15, [rdi+2*rbx] ;"
-			"mov rcx, 0x9 ;"
-			"sub rcx, rax ;"
-			"shr r15, cl ;"
-			"and r15, 0x1 ;"
+			"mov r15, [rdi+2*rbx] ;"// Retrieve the focused row value of the board's array into R15
 			
-			"mov r14, 0x1 ;"
-			"cmp r15, r14 ;"
-			"je .collide%= ;"
+			"mov rcx, 0x9 ;"	
+			"sub rcx, rax ;"	
+			"shr r15, cl ;"		// Shift right by the inverse of # of columns (rax)
+			"and r15, 0x1 ;"	// Mask the important bit!
+			
+			"mov r14, 0x1 ;"	// Set R14 to 0x1 for comparison
+			"cmp r15, r14 ;"	// Compare with R15; if final bit is set to '1', there's a collision.
+			"je .collide%= ;"	
 			
 			/**************************************************
 			*		Out-of-bounds checking
@@ -193,23 +196,19 @@ int checkCollide(int dir, TETRINTEGER *given)
 			"xor ecx, ecx ;"	// Clear C-reg for reuse
 			
 			"xor edx, edx ;"	// Set edx to 0
-			"cmp eax, edx ;"	// If A-reg (X position) less than 0...
-			//"cmovl rcx, r15 ;"	// Set result to 1 (collide)
+			"cmp eax, edx ;"	// If A-reg (X position) less than 0, collide
 			"jl .collide%= ;"
 			
 			"mov rdx, 0x9 ;"	// Set edx to 9
-			"cmp eax, edx ;"	// If A-reg (X position) greater than 9...
-			//"cmovg rcx, r15 ;"	// Set result to 1 (collide)
+			"cmp eax, edx ;"	// If A-reg (X position) greater than 9, collide
 			"jg .collide%= ;"
 			
 			"xor edx, edx ;"	
 			"cmp ebx, edx ;"	// If B-reg (Y position) less than 0, collide
-			//"cmovl rcx, r15 ;"
 			"jl .collide%= ;"
 			
 			"mov rdx, 0x13 ;"
 			"cmp ebx, edx ;"	// If B-reg (Y position) greater than decimal 19, collide
-			//"cmovg rcx, r15 ;"
 			"jg .collide%= ;"
 			
 			"jmp .done%= ;"
