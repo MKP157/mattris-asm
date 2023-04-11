@@ -6,27 +6,65 @@
 #include <curses.h>
 #include <signal.h>
 #include <time.h>
-#include "./defines.h"
 
-/**************************************************
-*		Global definitions
-***************************************************/
-unsigned short int 	ANCHOR;
-unsigned char		level = 9;
-
-#define BOARDTYPE unsigned short int
-BOARDTYPE 		board[20] = {0};
-volatile BOARDTYPE 	*rowPointer = &board[0];
+#define GOLEFT 0
+#define GORIGHT 1
+#define GODOWN 2
+#define SPIN 3
 
 #define TETRINTEGER unsigned short int
+#define BOARDTYPE unsigned short int
+
+// Anchor ///////////////////////////////////////////////////////////////////////////////
+// Chars can represent 256 total values; we only need up to 20 per y, and 10 per x.
+// 2 chars together make a short int.
+// ULPX in lower half of te anchor so it may be more easily decremented.
+
+unsigned short int ANCHOR;
+
+#define ANCHOR_RESET ANCHOR = 0x104; 
+//y=0, x=4; 0000 0100 b => 0x04 h
+
+#define ULPY_GET ((ANCHOR >> 8) & 0xFF) - 1
+#define ULPY_INC ANCHOR += 0x100
+
+#define ULPX_GET (ANCHOR & 0xFF) - 1
+#define ULPX_INC ANCHOR += 0x1
+#define ULPX_DEC ANCHOR -= 0x1
+
+
+// Blocks
+/* 00 01 10 11
+00
+01  x  x  x
+10     x
+11
+
+*/
+/* Anchor at top-left: */
+#define block_T 0x4569		// 0100010101101001b
+#define block_I 0x4567		// 0000000100100011b
+#define block_O 0x569A		// 0000010000010101b
+#define block_J 0x456A		// 0000010001010110b
+#define block_L 0x5679		// 0000000100100100b
+#define block_S 0x679A 		// 0001010101001000b
+#define block_Z 0x459A		// 0000010001011001b
+
+// Global Variables /////////////////////////////////////////////////////////////////////
+
+BOARDTYPE 		board[20] = {0};
 TETRINTEGER		block = 0;
 const TETRINTEGER	possibleBlocks[7] = {block_T, block_I, block_O, block_J, block_L, block_S, block_Z};
+unsigned char		level = 9;
+//int 			score = 0;
+
+
+// Methods //////////////////////////////////////////////////////////////////////////////
 
 void sighandler(int);
 
-/**************************************************
-*		Global definitions
-***************************************************/
+// Set tetromino in play /////////////////////////////////////////////////////////////
+
 void newBlock()
 {
 	ANCHOR_RESET;
@@ -56,8 +94,7 @@ void drawBlock(int x)
 		resultY = temp & 0x3;
 		temp >>= 2;*/
 		
-		asm volatile ( 
-			".intel_syntax noprefix;"
+		asm volatile ( ".intel_syntax noprefix;"
 			
 			"mov eax, ecx ;"
 			"and eax, 0x3 ;"
@@ -118,33 +155,27 @@ void drawBoard()
 
 int checkCollide(int dir, TETRINTEGER *given)
 {
-	drawBlock(0);
-	
 	TETRINTEGER temp = *given;
-	int ux = ULPX_GET;
-	int uy = ULPY_GET;
-	int bit = 0x0, result = 0;
-	// Variables unnecessary due to ASM
-	// int curr_X, curr_Y;
-	int ofs_X = 0, ofs_Y = 0;
+	unsigned int bit = 0x0;
+	int curr_X, curr_Y;
+	int ofs_X = 0x0, ofs_Y = 0x0;
 	int row, col;
-	
+
 	switch (dir)
 	{
 		// left
 		case GOLEFT:
-			//ofs_X--;
-			ofs_X = -1;
+			ofs_X--;
 		break;
 
 		// right
 		case GORIGHT:
-			ofs_X = 1;
+			ofs_X++;
 		break;
 
 		// down
 		case GODOWN:
-			ofs_Y = 1;
+			ofs_Y++;
 		break;
 	
 		// we don't need to change the offset with rotation.
@@ -154,86 +185,42 @@ int checkCollide(int dir, TETRINTEGER *given)
 	short int i = 0;
 	
 	_Loop:
-		asm volatile ( 
-			".intel_syntax noprefix;"
-			
-			"push rcx ;"		// Preserve the current temporary block
-			"and ecx, 0x3 ;"	// Mask the last two bits of temp
-			"add eax, ecx ;"	// Add this mask to [anchor X position + directional offset] 
-						// (*see ASM parameters below)
-						
-			"pop rcx ;"		// Retrieve temporary block
-			"shr ecx, 0x2 ;"	// Shift temp. 2 bits right
-			
-			"push rcx ;"		// Repeat above for Y (next 2 bits)
-			"and ecx, 0x3 ;"
-			"add ebx, ecx ;"
-			"pop rcx ;"
-			"shr rcx, 0x2 ;"
-			
-			"push rcx ;"		// Preserve the current temporary block
-			/**************************************************
-			*		Board check
-			***************************************************/
-			"mov r15, [rdi+2*rbx] ;"
-			"mov rcx, 0x9 ;"
-			"sub rcx, rax ;"
-			"shr r15, cl ;"
-			"and r15, 0x1 ;"
-			
-			"mov r14, 0x1 ;"
-			"cmp r15, r14 ;"
-			"je .collide%= ;"
-			
-			/**************************************************
-			*		Out-of-bounds checking
-			***************************************************/
-			
-			"mov r15, 1 ;"		// r15 for conditional move
-			"xor ecx, ecx ;"	// Clear C-reg for reuse
-			
-			"xor edx, edx ;"	// Set edx to 0
-			"cmp eax, edx ;"	// If A-reg (X position) less than 0...
-			//"cmovl rcx, r15 ;"	// Set result to 1 (collide)
-			"jl .collide%= ;"
-			
-			"mov rdx, 0x9 ;"	// Set edx to 9
-			"cmp eax, edx ;"	// If A-reg (X position) greater than 9...
-			//"cmovg rcx, r15 ;"	// Set result to 1 (collide)
-			"jg .collide%= ;"
-			
-			"xor edx, edx ;"	
-			"cmp ebx, edx ;"	// If B-reg (Y position) less than 0, collide
-			//"cmovl rcx, r15 ;"
-			"jl .collide%= ;"
-			
-			"mov rdx, 0x13 ;"
-			"cmp ebx, edx ;"	// If B-reg (Y position) greater than decimal 19, collide
-			//"cmovg rcx, r15 ;"
-			"jg .collide%= ;"
-			
-			"jmp .done%= ;"
-			
-			".collide%=: ;"
-			"mov rcx, r15 ;"
-			
-			".done%=: ;"
-			"mov rax, rcx ;"	// Put result into rax
-			"pop rcx ;"		// Restore temp block
-			".att_syntax ;"
-			
-			: "=a" ( result ), "=c" ( temp )
-			: "a" ( ULPX_GET + ofs_X ), "b" ( ULPY_GET + ofs_Y ), "c" ( temp ), "d" (0), "D" (board)
-			: "cc"
-		);
+		curr_X = temp & 0x3;
+		temp >>= 2;
+		curr_Y = temp & 0x3;
+		temp >>= 2;
 		
-		mvprintw( i+i+10, 30, "result:%d, temp:%d", result, temp);
-		refresh();
+		// shift all values of board right until focus bit is LSD;
+		// ex: want bit #3
+		// board[n] =   001010110 >> 3-1
+		//		000010101
+		//	&mask	000000001
+		//	==	000000001 => true
+		//
+		// ex: want bit #6
+		// board[n] =   001010110 >> 6-1
+		//		000000010
+		//	&mask	000000001
+		//	==	000000000 => false
 		
-		if (result) return 1;
+		row = ULPY_GET + curr_Y + ofs_Y;
+		col = ULPX_GET + curr_X + ofs_X;
+		
+		/* Debug
+		mvprintw(44+i*2,4,"Checked row:    %03hu", row);
+		mvprintw(45+i*2,4,"Checked column: %03hu", col);
+		*/
+		
+		if ( row < 0 || row > 19 || col < 0 || col > 9 )
+			return 1;
+	
+		bit = ( board[row] >> ( 9 - col ) ) & 0x1;
+	
+		if (bit)
+			return 1;
 		
 		i++;
-	if (i < 4 && !result) goto _Loop;
+	if (i < 4) goto _Loop;
 
 	return 0;
 }
@@ -311,82 +298,94 @@ void writeBlock(TETRINTEGER *given)
 
 void sighandler(int signum)
 {
+	drawBlock(0);
+
 	if (!checkCollide(GODOWN, &block))
 	{
-		drawBlock(0);
 		ULPY_INC;
 		ualarm((useconds_t)(level * 100000), 0);
-		drawBlock(1);
-		refresh();
 	}
 
 	else
 	{
+		drawBlock(1);
 		writeBlock(&block);
 		newBlock();
 		
 		sighandler(SIGALRM);
 	}
+
+	drawBlock(1);
+	refresh();
 }
 // Game loop /////////////////////////////////////////////////////////////
 
 int gameloop() 
 {
-	// Draw game border.
+	// draw board border
 	int borderLoop_i = 0;
-	_borderLoop: mvprintw( borderLoop_i++, 20, "|");
+
+	_borderLoop:
+		move( borderLoop_i++, 20 );
+		printw("|");
+	
 	if (borderLoop_i < 20) goto _borderLoop;
+	
+	newBlock();
 	drawBoard();
 	
-	// Initialize and begin alarm.
+	int ch = 'p';
+
 	signal(SIGALRM,sighandler); // Register signal handler
 	ualarm((useconds_t)(level * 100000), 0);
 	
-	newBlock();
-	int ch = 'p';
 _gameLoop:
-	DRAWFRAME;
+	//DEBUG();
+	refresh();
+	drawBlock(1);
+	refresh();
 	ch = getchar();
+	drawBlock(0);
 
-	switch(ch) 
-	{
-		// Rotation case. Clones the current block, sends it off
-		// to the external ASM file for processing, and then tests
-		// the result for possible collisions. If it passes,
-		// the current block is replaced with the result.
+	switch(ch) {
+		// rotate
 		case 'w':
 			TETRINTEGER temp = block;
 			temp = ASMrotateBlock(temp);
 			
 			if (!checkCollide(SPIN, &temp))
 				block = temp;
+			
 		break;
 
-		// Check collision to the left of the current position.
+		// check left:
 		case 'a':
-			if (!checkCollide(GOLEFT, &block)) ULPX_DEC;
+			if (!checkCollide(GOLEFT, &block))
+				ULPX_DEC;
 		break;
 
-		// Check collision to the right of the current position.
+		// check right:
 		case 'd':
-			if (!checkCollide(GORIGHT, &block)) ULPX_INC;
+			if (!checkCollide(GORIGHT, &block))
+				ULPX_INC;
 		break;
 
-		// Skip the alarm, and move the block downward. 
-		// Collision handled within alarm function.
+		//check down
 		case 's':
 			sighandler(SIGALRM);
 		break;
 
 		// new block (debug!)
-		case 'b':  
+		case 'b':
 			newBlock();
 		break;
 		
-		default:
+		default: break;
 	}
 	
 	if (ch != 'e') goto _gameLoop;
+	
+	gameOver:
 	
 	return 1;
 }
