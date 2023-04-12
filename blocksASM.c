@@ -7,12 +7,14 @@
 #include <signal.h>
 #include <time.h>
 #include "./defines.h"
+#include "./title.c"
 
 /**************************************************
 *		Global definitions
 ***************************************************/
 unsigned short int 	ANCHOR;
-unsigned char		level = 9;
+unsigned int		level = 9;
+unsigned int		lines = 0;
 
 #define BOARDTYPE unsigned short int
 BOARDTYPE 		board[20] = {0};
@@ -47,6 +49,8 @@ void drawBlock(int x)
 	
 	short int i = 0;
 	
+	mvprintw( 9, 30, "< * BLOCK DRAW DEBUG * >");
+	
 	_loop:
 		
 		/*// 0x3 is a 2-bit mask.
@@ -70,10 +74,12 @@ void drawBlock(int x)
 			".att_syntax ;"
 			
 			: "=a" ( resultX ), "=b" ( resultY ), "=c" ( temp )
-			: "a" (0), "b" (0), "c" ( temp ) );
+			: "a" (0), "b" (0), "c" ( temp )
+			: "cc"
+		);
 			
 		// debug:
-		mvprintw( i, 30, "%d,%d : %08d", resultX, resultY, temp );
+		mvprintw( i+10, 30, "%d,%d : %08d", resultX, resultY, temp );
 		
 		mvprintw(ULPY_GET + resultY, (ULPX_GET + resultX) * 2, "%s", out);
 		
@@ -98,8 +104,11 @@ void drawBoard()
 			temp2 = (board[i] >> j);
 
 			if (temp2 & 0x1)
+			{
+				attron(COLOR_PAIR( i % 7 ));
 				printw("[]");
-	
+				attron(COLOR_PAIR(7));
+			}
 			else
 				printw(" .");
 		
@@ -113,7 +122,7 @@ void drawBoard()
 }
 
 
-// Check collisions. Return 0 if no, 1 if yes
+// Check collisions. Return 0 if no, 1 if yes /////////////////////////////////
 
 
 int checkCollide(int dir, TETRINTEGER *given)
@@ -153,6 +162,8 @@ int checkCollide(int dir, TETRINTEGER *given)
 	
 	short int i = 0;
 	
+	mvprintw(15, 30, "< * COLLISION DEBUG * >");
+	
 	_Loop:
 		asm volatile 
 		( 
@@ -191,7 +202,6 @@ int checkCollide(int dir, TETRINTEGER *given)
 			/**************************************************
 			*		Out-of-bounds checking
 			***************************************************/
-			
 			"mov r15, 1 ;"		// r15 for conditional move
 			"xor ecx, ecx ;"	// Clear C-reg for reuse
 			
@@ -226,7 +236,7 @@ int checkCollide(int dir, TETRINTEGER *given)
 			: "cc"
 		);
 		
-		mvprintw( i+i+10, 30, "result:%d, temp:%d", result, temp);
+		mvprintw( i+16, 30, "result:%d, temp:%d", result, temp);
 		refresh();
 		
 		if (result) return 1;
@@ -248,15 +258,32 @@ void writeBlock(TETRINTEGER *given)
 	TETRINTEGER temp_block = *given;
 	int temp_rows[4] = {0,0,0,0};
 	unsigned int temp_col, temp_row;
-	
-	short int i = 0;
+	int i = 0;
 
 	_writeLoop:
-		temp_col = ULPX_GET + (temp_block & 0x3);
-		temp_block >>= 2;
-	
-		temp_row = ULPY_GET + (temp_block & 0x3);
-		temp_block >>= 2;
+		
+		asm volatile 
+		( 
+			".intel_syntax noprefix;"
+			
+			"push rcx ;"		// Preserve the current temporary block
+			"and ecx, 0x3 ;"	// Mask the last two bits of temp
+			"add eax, ecx ;"	// Add this mask to [anchor X position] 
+			"pop rcx ;"		// Retrieve temporary block
+			"shr rcx, 0x2 ;"	// Shift temp. 2 bits right
+			
+			"push rcx ;"		// Repeat above for Y (next 2 bits)
+			"and ecx, 0x3 ;"	
+			"add ebx, ecx ;"	
+			"pop rcx ;"
+			"shr rcx, 0x2 ;"
+			
+			".att_syntax ;"
+			
+			: "=a" ( temp_col ), "=b" ( temp_row ), "=c" ( temp_block )
+			: "a" ( ULPX_GET ), "b" ( ULPY_GET ), "c" ( temp_block )
+			: "cc"
+		);
 		
 		// Gameover/Error condition.
 		// It is a part of the block-writing function so that
@@ -283,7 +310,8 @@ void writeBlock(TETRINTEGER *given)
 	
 	// Clearing lines
 	i = 0;
-	short int k;
+	
+	int k;
 
 	_checkLineLoop:
 	
@@ -297,6 +325,7 @@ void writeBlock(TETRINTEGER *given)
 				if (k > 1) goto _clearLineLoop;
 		
 			board[0] = 0;
+			lines++;
 		}
 	
 		i++;
@@ -306,7 +335,7 @@ void writeBlock(TETRINTEGER *given)
 	refresh();
 }
 
-// Signal handler (move down) /////////////////////////////////////////////////////////////
+// Signal handler (move down) /////////////////////////////////////////////
 
 void sighandler(int signum)
 {
@@ -324,6 +353,8 @@ void sighandler(int signum)
 		writeBlock(&block);
 		newBlock();
 		
+		if ( !(lines % 10) && (level > 1) ) level--;
+		
 		sighandler(SIGALRM);
 	}
 }
@@ -333,8 +364,11 @@ int gameloop()
 {
 	// Draw game border.
 	int borderLoop_i = 0;
-	_borderLoop: mvprintw( borderLoop_i++, 20, "|");
+	
+	_borderLoop: 
+		mvprintw( borderLoop_i++, 20, "|");
 	if (borderLoop_i < 20) goto _borderLoop;
+	
 	drawBoard();
 	
 	// Initialize and begin alarm.
@@ -343,7 +377,10 @@ int gameloop()
 	
 	newBlock();
 	int ch = 'p';
+
 _gameLoop:
+	hud( &lines, &level);
+	
 	DRAWFRAME;
 	ch = getchar();
 
@@ -399,7 +436,7 @@ int main()
 	time_t t;
 	srand((unsigned) time(&t));
 	
-	gameloop();
+	if ( title() ) gameloop();
 
 	endwin();			// End curses mode
 	curs_set(1);
