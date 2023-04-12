@@ -79,7 +79,7 @@ void drawBlock(int x)
 		);
 			
 		// debug:
-		mvprintw( i+10, 30, "%d,%d : %08d", resultX, resultY, temp );
+		mvprintw( i+10, 30, "%d,%d : %08x", resultX, resultY, temp );
 		
 		mvprintw(ULPY_GET + resultY, (ULPX_GET + resultX) * 2, "%s", out);
 		
@@ -236,7 +236,7 @@ int checkCollide(int dir, TETRINTEGER *given)
 			: "cc"
 		);
 		
-		mvprintw( i+16, 30, "result:%d, temp:%d", result, temp);
+		mvprintw( i+16, 30, "result:%d, temp:%04x", result, temp);
 		refresh();
 		
 		if (result) return 1;
@@ -353,8 +353,6 @@ void sighandler(int signum)
 	{
 		writeBlock(&block);
 		newBlock();
-		
-		if ( !(lines % 10) && (lines != 0) && (level > 1) ) level--;
 		
 		sighandler(SIGALRM);
 	}
