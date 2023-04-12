@@ -54,8 +54,10 @@ int title ()
 void hud ( int* lines, int* level )
 {
 	attron( COLOR_PAIR(*level) );
-	mvprintw( 2, 30, "Level: %d", 9-(*level) );
-	mvprintw( 3, 30, "Lines: %d", (*lines) );
+	mvprintw( 1, 30, "============" );
+	mvprintw( 2, 30, " Level: %03d", 9-(*level) );
+	mvprintw( 3, 30, " Lines: %03d", (*lines) );
+	mvprintw( 4, 30, "============" );
 	attron( COLOR_PAIR(7) );
 	
 	refresh();

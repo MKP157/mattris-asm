@@ -318,11 +318,12 @@ void writeBlock(TETRINTEGER *given)
 		if ( board[i] == 0x3FF )
 		{
 			k = i;
-		
+			
 			_clearLineLoop:
 				board[k] = board[k-1];
 				k--;
-				if (k > 1) goto _clearLineLoop;
+			
+			if (k > 1) goto _clearLineLoop;
 		
 			board[0] = 0;
 			lines++;
@@ -353,7 +354,7 @@ void sighandler(int signum)
 		writeBlock(&block);
 		newBlock();
 		
-		if ( !(lines % 10) && (level > 1) ) level--;
+		if ( !(lines % 10) && (lines != 0) && (level > 1) ) level--;
 		
 		sighandler(SIGALRM);
 	}
