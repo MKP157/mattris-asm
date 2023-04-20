@@ -5,7 +5,7 @@
 ASMrotateBlock:
 	mov	rax, 0
 	
-	# Square-block; do nothing
+# Square-block; do nothing
 	mov 	rbx, 0x569A
 	cmp 	rdi, rbx
 	jne	.I_1
@@ -14,8 +14,8 @@ ASMrotateBlock:
 	
 	jmp 	.done
 
+# Line-block, case 1 ( -- => | )
 .I_1:
-	# Line-block, case 1 ( -- => | )
 	mov 	rbx, 0x159D
 	cmp 	rdi, rbx
 	jne	.I_2
@@ -24,8 +24,8 @@ ASMrotateBlock:
 	
 	jmp 	.done
 
+# Line-block, case 2 ( | => -- )
 .I_2:
-	# Line-block, case 2 ( | => -- )
 	mov 	rbx, 0x4567
 	cmp 	rdi, rbx
 	jne	.iterate

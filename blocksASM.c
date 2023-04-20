@@ -1,4 +1,38 @@
-/* code by matt peterson. pls don't copy :( */
+/************************************************************************************
+  ___      ___       __  ___________  ___________  _______    __      ________
+ |"  \    /"  |     /""\("     _   ")("     _   ")/"      \  |" \    /"       )
+  \   \  //   |    /    \)__/  \\__/  )__/  \\__/|:        | ||  |  (:   \___/
+ |: \.        |  //  __'  \ |.  |        |.  |    //      /  |.  |    __/  \\
+ |.  \    /:  | /   /  \\  \\:  |        \:  |   |:  __   \  /\  |\  /" \   :)
+ |___|\__/|___|(___/    \___)\__|         \__|   |__|  \___)(__\_|_)(_______/
+               ..............................................
+               ....########......#########...####......####..
+               ...####..####...#####.........######..######..
+               ..####....####....########....##############..
+               ..############.........#####..####.####.####..
+               ..###......###...#########....####..##..####..
+               ..............................................
+               
+               
+	Welcome to mattris-asm! This rendition of my mattris project aims to
+	reconcile some inefficiencies of the original, cut away some bloat
+	caused by ncurses (though some flair is retained in "title.c"), and
+	hopefully rework lots of the C code into assembly to take advantage
+	of the TetrInteger, a special data type I've conceptualized
+	specifically for this project.
+	
+	Written by Matthew Kenneth Peterson; ID 3719754; github "MKP157"
+	
+	@ Dr. Jong-Kyou Kim, CS 2253 - Final Project
+*************************************************************************************/
+
+/**************************************************
+*		""
+*
+*
+* Input  : None
+* Output : None
+***************************************************/
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -7,11 +41,30 @@
 #include <signal.h>
 #include <time.h>
 #include "./defines.h"
-#include "./title.c"
+#include "./graphics.c"
 
 /**************************************************
 *		Global definitions
+*
+* "ANCHOR"    : Upper-left tile of a Tetris piece.
+*		Serves as anchor-point in relation
+*		to the game board.
+* "level"     : Game difficulty.
+* "lines"     : Effective score.
+* "board"     : Array of short ints. Each short
+*		is a row of the board, where a
+*		0 represents an empty space
+*		and 1 is a filled space.
+* "rowPointer": This pointer is how we pass the board
+*		to assembly; it's volatile so that
+*		the compiler doesn't remove it for
+*		optimization's sake.
+* "block"     :	Tetris block in play.
+* "possibleBlocks" :
+*		Possible block values. Defined in
+*		"defines.h".
 ***************************************************/
+
 unsigned short int 	ANCHOR;
 unsigned int		level = 9;
 unsigned int		lines = 0;
@@ -24,9 +77,19 @@ volatile BOARDTYPE 	*rowPointer = &board[0];
 TETRINTEGER		block = 0;
 const TETRINTEGER	possibleBlocks[7] = {block_T, block_I, block_O, block_J, block_L, block_S, block_Z};
 
+// Function fix-up
 void sighandler(int);
+extern TETRINTEGER ASMrotateBlock ( TETRINTEGER given );
 
 /**************************************************
+*		"newBlock"
+*
+* Places the anchor point in the initial position,
+* and selects one of the 7 predefined block 
+* possibilities to put into place.
+*
+* Input  : None
+* Output : Assigns generated value to global "block"
 ***************************************************/
 void newBlock()
 {
@@ -34,30 +97,55 @@ void newBlock()
 	block = possibleBlocks[ rand() % 7 ];
 }
 
-// draw active block. parameter x: 0=erase, 1=draw
+/**************************************************
+*		"drawBlock"
+* 
+* Draw the current block to the screen. Cycles
+* through the coordinates using inline assembly.
+*
+* Input: 
+*	int "x", which selects the drawing mode.
+*	Non-zero value indicate to draw the block.
+*	Zero indicates to erase.
+*	
+* Output : None
+***************************************************/
 
 void drawBlock(int x)
 {
 	TETRINTEGER temp = block;
 	unsigned int resultX, resultY;
+	short int i = 0;
 	char* out;
-
 	if (x)
 		out = "[]";
 	else
 		out = " .";
 	
-	short int i = 0;
 	
 	mvprintw( 9, 30, "< * BLOCK DRAW DEBUG * >");
 	
 	_loop:
-		
-		/*// 0x3 is a 2-bit mask.
+		/* Original C:
+		// 0x3 is a 2-bit mask.
 		resultX = temp & 0x3;
 		temp >>= 2;
 		resultY = temp & 0x3;
 		temp >>= 2;*/
+		
+		/* Assembly rewrite.
+		
+		Note the "volatile" keyword. This is specifically
+		so that the compiler does not remove or attempt
+		to optimize the inline-assembly. For all intents
+		and purposes, my use of it is fine, however
+		I recommend reading the documentation for it
+		before using it yourself. 
+		
+		Trims the last 4 bits off of the temporary block,
+		and returns them as the next y and x to be
+		evaluated. Then, what's left of the temporary
+		block is returned for processing.*/
 		
 		asm volatile 
 		( 
@@ -78,9 +166,10 @@ void drawBlock(int x)
 			: "cc"
 		);
 			
-		// debug:
+		// Debug;
 		mvprintw( i+10, 30, "%d,%d : %08x", resultX, resultY, temp );
 		
+		// Print resulting block fragment:
 		mvprintw(ULPY_GET + resultY, (ULPX_GET + resultX) * 2, "%s", out);
 		
 	i++;
@@ -89,84 +178,112 @@ void drawBlock(int x)
 	refresh();
 }
 
-// draw board
-
+/**************************************************
+*		"drawBoard"
+*
+* Called after line-clears. Redraws the board with
+* proper respect to colouring, as the static
+* board is drawn in a rainbow pattern.
+*
+* Input  : None
+* Output : Current state of board drawn to screen.
+***************************************************/
 void drawBoard()
 {
 	int temp1, temp2;
 	short int i = 0, j;
-	_L1:
+	rowLoop:
 		move(i, 0);
+		
+		// Save focused row value into temp.
 		temp1 = board[i];
 		j = 9;
 		
-		_L2:
+		columnLoop:
+			// If the column-value bit of
+			// a row is 1, display it.
+			// Otherwise, overwrite with
+			// an empty space.
+			
 			temp2 = (board[i] >> j);
 
 			if (temp2 & 0x1)
 			{
-				attron(COLOR_PAIR( i % 7 ));
+				// Enable corresponding row's
+				// colour for printing.
+				attron(COLOR_PAIR( i % 7 + 1 ));
 				printw("[]");
+				
+				// Switch back to white.
 				attron(COLOR_PAIR(7));
 			}
 			else
 				printw(" .");
 		
 			j--;
-		if (j >= 0) goto _L2;
+		if (j >= 0) goto columnLoop;
 	
 		i++;
-	if (i < 20) goto _L1;
+	if (i < 20) goto rowLoop;
 
 	refresh();
 }
 
-
-// Check collisions. Return 0 if no, 1 if yes /////////////////////////////////
-
+/**************************************************
+*		"checkCollide"
+*
+* Checks for collision in a given direction against
+* the game board, for the block specified. This need
+* not be the block in play, nor does a valid 
+* direction need to be specified. For example, block
+* rotation checks to make sure its result fits into 
+* the current board-space without overwriting the
+* block in play until it has confirmed that it will
+* fit.
+*
+* Input  : 
+*	int "dir", which specifies the collision
+*	direction to be checked.
+*
+*	TETRINTEGER "given", a pointer towards
+*	whatever block the function-caller
+*	would like to evaluate.
+*
+* Output :
+*	integer result. Returning 0 indicates
+*	that no collision has been detected.
+*	Non-zero means it has.
+*
+***************************************************/
 
 int checkCollide(int dir, TETRINTEGER *given)
 {
 	drawBlock(0);
 	
 	TETRINTEGER temp = *given;
-	int ux = ULPX_GET;
-	int uy = ULPY_GET;
 	int bit = 0x0, result = 0;
-	// Variables unnecessary due to ASM
-	// int curr_X, curr_Y;
 	int ofs_X = 0, ofs_Y = 0;
 	int row, col;
+	short int i = 0;
 	
 	switch (dir)
 	{
-		// left
-		case GOLEFT:
-			//ofs_X--;
-			ofs_X = -1;
-		break;
+		case GOLEFT:	ofs_X = -1;	break;
 
-		// right
-		case GORIGHT:
-			ofs_X = 1;
-		break;
+		case GORIGHT:	ofs_X = 1;	break;
 
-		// down
-		case GODOWN:
-			ofs_Y = 1;
-		break;
+		case GODOWN:	ofs_Y = 1;	break;
 	
 		// we don't need to change the offset with rotation.
 		default:
 	}
 	
-	short int i = 0;
-	
 	mvprintw(15, 30, "< * COLLISION DEBUG * >");
 	
+	// Rotation algorithm in raw assembly!
 	_Loop:
 		asm volatile 
-		( 
+		(
 			".intel_syntax noprefix;"
 			
 			"push rcx ;"		// Preserve the current temporary block
@@ -247,11 +364,13 @@ int checkCollide(int dir, TETRINTEGER *given)
 	return 0;
 }
 
-// rotate block both in theory and on game board
-
-extern TETRINTEGER ASMrotateBlock ( TETRINTEGER given );
-
-// Write block to game board
+/**************************************************
+*		""
+*
+*
+* Input  : None
+* Output : None
+***************************************************/
 
 void writeBlock(TETRINTEGER *given)
 {
@@ -291,13 +410,7 @@ void writeBlock(TETRINTEGER *given)
 		if ( board[temp_row] & (0x1 << (9-temp_col)) )
 		{
 			endwin();
-			
-			printf("   ___   _   __  __ ___    _____   _____ ___ \n");
-			printf("  / __| /_\\ |  \\/  | __|  / _ \\ \\ / / __| _ \\\n");
-			printf(" | (_ |/ _ \\| |\\/| | _|  | (_) \\ V /| _||   /\n");
-			printf("  \\___/_/ \\_\\_|  |_|___|  \\___/ \\_/ |___|_|_\\\n");
-			printf("... you stacked too high! Better luck next time.\n");
-			
+			gameOver();
 			curs_set(1);
 			exit(1);
 		}
@@ -327,6 +440,8 @@ void writeBlock(TETRINTEGER *given)
 		
 			board[0] = 0;
 			lines++;
+			
+			level = level < 9 ? level : 9 - lines / 10 ;
 		}
 	
 		i++;
