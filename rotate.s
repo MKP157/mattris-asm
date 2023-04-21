@@ -1,3 +1,23 @@
+#############################################################################
+# 
+#			     ==== "rotate.s" ====
+#	
+#	Complete implementation of mattris' block-rotation process in
+#	x86-64 assembly, specifically written in Intel MASM syntax.
+#	This is for no particular reason, other than how I am more
+#	familiar with MASM's syntax over AT&T.
+#
+#	Assumes that the only argument passed is a valid TetrInteger,
+#	and rotates all of its coordinates using common 90-degree 
+#	rotation (y,x)
+#
+#	Written by Matthew Kenneth Peterson; ID 3719754; github "MKP157"
+#	
+#	@ Dr. Jong-Kyou Kim, CS 2253 - Final Project
+#	@ Last updated April 20, 2023
+#
+#############################################################################
+
 .intel_syntax noprefix
 
 .globl ASMrotateBlock

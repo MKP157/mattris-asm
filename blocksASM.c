@@ -21,18 +21,36 @@
 	of the TetrInteger, a special data type I've conceptualized
 	specifically for this project.
 	
+	The TetrInteger is a bit-packed list of 2-bit coordinates, in 4
+	pairs of (y,x). Note that y precedes, as Ncurses deals in
+	row-major values. Each Tetris block may be represented by this list,
+	in addition to an anchor point in relation to the game's board.
+	
+	For example, consider the T block. Its conceptual layout and associated
+	TetrInteger value may be represented as shown below. Note that the
+	four segments of the blocks need not occur in any particular order,
+	however packing them as they appear from upper-left to lower-right 
+	is preferred. This is because every method of deciphering a block 
+	starts from the end of the value, and the segments towards the 
+	lower-right of a Tetris piece are more likely to collide with things. 
+	
+	(y\x) | 00 | 01 | 10 | 11
+	   -- ....................
+	   00 .    .    .    .   .
+	   -- ....................
+	   01 . ## . ## . ## .   .
+	   -- ....................  --> Becomes yxyxyxyx = 0100010101101000
+	   10 .    . ## .    .   .
+	   -- ....................
+	   11 .    .    .    .   .
+	   -- ....................
+	   
 	Written by Matthew Kenneth Peterson; ID 3719754; github "MKP157"
 	
 	@ Dr. Jong-Kyou Kim, CS 2253 - Final Project
+	@ Last updated April 20, 2023
+	
 *************************************************************************************/
-
-/**************************************************
-*		""
-*
-*
-* Input  : None
-* Output : None
-***************************************************/
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -68,6 +86,7 @@
 unsigned short int 	ANCHOR;
 unsigned int		level = 9;
 unsigned int		lines = 0;
+unsigned int		linesRemaining = 10;
 
 #define BOARDTYPE unsigned short int
 BOARDTYPE 		board[20] = {0};
@@ -365,8 +384,11 @@ int checkCollide(int dir, TETRINTEGER *given)
 }
 
 /**************************************************
-*		""
+*		"writeBlock"
 *
+* Handles both writing blocks to the game board,
+* as well as checking the board afterward for lines 
+* to clear.
 *
 * Input  : None
 * Output : None
@@ -375,9 +397,11 @@ int checkCollide(int dir, TETRINTEGER *given)
 void writeBlock(TETRINTEGER *given)
 {
 	TETRINTEGER temp_block = *given;
-	int temp_rows[4] = {0,0,0,0};
 	unsigned int temp_col, temp_row;
-	int i = 0;
+	int i = 0, k;
+	
+	// Keep track of affected rows.
+	int temp_rows[4] = {0,0,0,0};
 
 	_writeLoop:
 		
@@ -406,7 +430,9 @@ void writeBlock(TETRINTEGER *given)
 		
 		// Gameover/Error condition.
 		// It is a part of the block-writing function so that
-		// we avoid segmentation faults.
+		// we avoid segmentation faults. Why? Not sure.
+		// But it works, and I'm tired.
+		
 		if ( board[temp_row] & (0x1 << (9-temp_col)) )
 		{
 			endwin();
@@ -415,17 +441,26 @@ void writeBlock(TETRINTEGER *given)
 			exit(1);
 		}
 		
-		board[temp_row] = board[temp_row] + (0x1 << (9-temp_col));
+		// Flip affected bit of row value to 1
+		board[temp_row] = board[temp_row] | (0x1 << (9-temp_col));
 		
 		i++;
 	
 	if (i < 4) goto _writeLoop;
 	
-	// Clearing lines
-	i = 0;
+	/* Line clearing:
+	1. Check row i. 
+		If value = binary 1111111111, the row is full. 
+		If not, iterate and check next.
 	
-	int k;
-
+	2. For each row above current, shift down by 1.
+	3. Clear top board row.
+	4. Increment line count.
+	5. If level is less than nine, set it to the 
+	current line count devided by 10.
+	6. Repeat for all rows i. */
+	
+	i = 0;
 	_checkLineLoop:
 	
 		if ( board[i] == 0x3FF )
@@ -440,18 +475,41 @@ void writeBlock(TETRINTEGER *given)
 		
 			board[0] = 0;
 			lines++;
+			linesRemaining--;
 			
-			level = level < 9 ? level : 9 - lines / 10 ;
+			if ( linesRemaining == 0 && ( level > 0 ) )
+			{
+				linesRemaining = 10;
+				level--;
+			}
 		}
 	
 		i++;
 		if (i < 20) goto _checkLineLoop;
-		
+	
+	// Draw resulting board and refresh the screen.
 	drawBoard();
 	refresh();
 }
 
-// Signal handler (move down) /////////////////////////////////////////////
+
+/**************************************************
+*		Alarm signal handler
+*
+* Every (1/10 second * level) milliseconds, an alarm 
+* will interrupt code execution to process the current
+* block's gravity.
+*
+* If a collision beneath the block is NOT detected, 
+* the block will move downard and a new alarm will 
+* be triggered. Else, a new block will be generated,
+* the current one will be written to the board,
+* and the process will restart in order to check the
+* new block's gravity.
+*
+* Input  : "SIGALRM", signal code for alarm interrupts.
+* Output : None
+***************************************************/
 
 void sighandler(int signum)
 {
@@ -472,26 +530,37 @@ void sighandler(int signum)
 		sighandler(SIGALRM);
 	}
 }
-// Game loop /////////////////////////////////////////////////////////////
+
+
+/**************************************************
+*		"gameloop"
+*
+* Star of the show, where all the magic happens.
+* For ever loop, the heads-up display (game info)
+* is refreshed, the block is redrawn into its
+* new posiition, and input is polled from the
+* user.
+*
+* Input  : None
+* Output : Returns an arbitrary exit code.
+***************************************************/
 
 int gameloop() 
 {
+	int ch = 'p';
+	newBlock();
+	drawBoard();
+	
 	// Draw game border.
 	int borderLoop_i = 0;
-	
 	_borderLoop: 
 		mvprintw( borderLoop_i++, 20, "|");
 	if (borderLoop_i < 20) goto _borderLoop;
-	
-	drawBoard();
 	
 	// Initialize and begin alarm.
 	signal(SIGALRM,sighandler); // Register signal handler
 	ualarm((useconds_t)(level * 100000), 0);
 	
-	newBlock();
-	int ch = 'p';
-
 _gameLoop:
 	hud( &lines, &level);
 	
@@ -542,17 +611,26 @@ _gameLoop:
 }
 
 
+/**************************************************
+*		main method
+***************************************************/
+
 int main()
 {
-	initscr();			// Begin curses
+	// Begin curses
+	initscr();
 	curs_set(0);
 	
+	// Seed random number generation
 	time_t t;
 	srand((unsigned) time(&t));
 	
+	// If title() returns a non-zero value, the player has decided to start a game.
+	// Otherwise, the player has decided to quit.
 	if ( title() ) gameloop();
 
-	endwin();			// End curses mode
+	// End curses mode
+	endwin();
 	curs_set(1);
 	return 0;
 }
