@@ -1,3 +1,8 @@
+/*
+ *  Very simple methods for drawing more complex graphics in larger batches.
+ *  No real commenting here, as I felt at these methods were fairly self-descriptive.
+ */
+
 
 int title ()
 {

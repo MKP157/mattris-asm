@@ -58,8 +58,8 @@
 #include <curses.h>
 #include <signal.h>
 #include <time.h>
-#include "./defines.h"
-#include "./graphics.c"
+#include "include/defines.h"
+#include "include/graphics.c"
 
 /**************************************************
 *		Global definitions
